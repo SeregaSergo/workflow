@@ -1,0 +1,52 @@
+## Your job
+
+Implement the plan below in the current worktree.
+
+## Plan
+
+```
+{{ plan_summary }}
+```
+
+{% if qa_answers %}
+## Clarifications collected during planning
+
+These answers were already taken into account in the plan above; included
+here for context. Do not ask the same questions again.
+
+```
+{{ qa_answers }}
+```
+{% endif %}
+
+## Rules
+
+- Apply the code changes and add/update tests as described in the plan.
+- Run the relevant test suite; if it fails, fix it until it goes green.
+- Try to find and run the project's linter/formatter if one is configured.
+- The phase will create the commit itself after you finish. Do NOT run
+  any git command that mutates the repo (`add`, `commit`, `push`, `checkout`, ...)
+  — these will be blocked.
+- Read-only git commands ARE allowed and encouraged for orienting yourself
+  (`status`, `diff`, `log`, `show`, ...).
+- Do not edit anything outside the worktree, and do not create a merge
+  request.
+
+## Output
+
+When you are done, emit a final reply containing the XML-tagged block below,
+exactly:
+
+```
+<commit_message>
+<one short, imperative subject line summarizing this change>
+</commit_message>
+```
+
+Rules for the commit message:
+- a single line, max 72 characters
+- imperative mood ("Add X", "Fix Y" — not "Added"/"Fixes")
+- describe the change at the level of intent, not low-level edits
+- no trailing period, no surrounding quotes
+- do NOT write a literal `</commit_message>` inside the block contents —
+  the parser stops at the first match.

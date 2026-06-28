@@ -1,0 +1,49 @@
+version: 1
+data_dir: ~/wf
+
+defaults:
+  max_iterations: 3
+
+claude:
+  permission_mode: bypassPermissions
+  # Модель по умолчанию для всех фаз. null = SDK сам выберет.
+  model: null
+  # Override модели для конкретных фаз. Ключ — имя фазы (explore/plan/
+  # implement/review/...), значение — model id (например, claude-opus-4-7).
+  # Удобно, когда хочется на этапе планирования держать самую сильную модель,
+  # а остальные фазы оставить на дефолте.
+  phase_models:
+    plan: claude-opus-4-7
+
+# Внешние инструменты, которые вызывают фазы. cmd рендерится через jinja2,
+# доступ к контексту фазы (см. runner.run_tool).
+#
+# Пример create_mr (используется фазой `mr`):
+#   - cwd = worktree
+#   - в контексте доступны: branch, base_branch, task_id, task_url, worktree
+#   - команда должна писать URL MR последней непустой строкой stdout
+#     (если ваш CLI этого не делает — заверните вызов в скрипт)
+#
+# Пример notify (используется фазой `notify`):
+#   - cwd = worktree
+#   - в контексте доступны: channel_id, message (готовая отрендеренная строка
+#     с возможными \n внутри)
+#   - cmd рендерится через jinja2, затем разбивается shlex.split — если в
+#     аргументе могут быть пробелы/переводы строк/кавычки, прогоняйте его
+#     через фильтр |shquote (обёртка над shlex.quote), иначе argv «расползётся»
+#
+# tools:
+#   create_mr:
+#     cmd: "glab mr create --source-branch {{branch}} --target {{base_branch}} --title {{task_id|shquote}} --yes"
+#   notify:
+#     cmd: "mynotify {{channel_id}} {{message|shquote}}"
+tools: {}
+
+workflows:
+  coding:
+    notify_channel_id: "REPLACE_ME"   # canonical channel for MR notifications
+    reviewers: []                     # @logins/имена ревьюверов, выводятся одной строкой в notify
+    # Список фаз, перед которыми движок останавливается и просит `wf resume`.
+    # Пустой список (по умолчанию) = без пауз. Чтобы вернуть прежнее поведение
+    # (пауза после review для ручной проверки diff'a) — раскомментируй строку:
+    # pause_before: [mr]

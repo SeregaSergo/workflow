@@ -1,0 +1,49 @@
+## Task ID
+
+```
+{{ task_id }}
+```
+
+## Your job
+
+You need to get task description and context of this task for development.
+You HAVE TO understand when to stop (you don't need a lot information - only relevant).
+
+Use {{ fetch_cmd }} <taskId> to get task info and capture the output.
+Read the task carefully. If the description references subtasks or linked tasks that are needed to
+understand scope or context, fetch them too using the same tool with their IDs.
+
+## Output
+
+Emit your final reply as four independent XML-tagged blocks. Order does not matter.
+
+```
+<task_url>
+<main task url here>
+</task_url>
+
+<task_title>
+<one-line human-readable title of the main task, plain text, max 120 chars, in russian>
+</task_title>
+
+<main_task_info>
+<main task info as markdown>
+</main_task_info>
+
+<additional_info>
+<short summary of related tasks as markdown>
+</additional_info>
+```
+
+Rules:
+- main task description is not changable (but you MUST delete empty markdown blocks)
+- no links needed or linked task ids
+- you need to do short summary of linked task (not main task) and ONLY
+  important information
+- `<task_title>` must be a single line, no markdown, no quotes, suitable for a chat
+  notification — used as the first line in the MR notification message
+- emit each tag exactly once, opening and closing
+- do NOT write a literal closing tag (e.g. `</main_task_info>`) inside the
+  contents of a block — the parser stops at the first match. If you must
+  show an example tag in markdown, wrap it in a code-fence and avoid the
+  exact closing form.

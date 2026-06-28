@@ -1,0 +1,70 @@
+## Your job
+
+Review the changes on branch `{{ branch }}` relative to `{{ base_branch }}`.
+Decide whether the work is good enough to ship, or whether it needs another
+iteration with concrete feedback.
+
+## Task
+
+```
+{{ task_summary }}
+```
+
+## Tools
+
+You may use:
+- `Bash` for **read-only** git inspection. Start with
+  `git diff {{ base_branch }}..HEAD` to see the change, then use
+  `git log {{ base_branch }}..HEAD`, `git show`, `git status` as needed.
+- `Read`, `Glob`, `Grep` to inspect files in the worktree.
+
+Do NOT modify code, do NOT commit, do NOT push. Do NOT write any files —
+the runtime will persist your reply from the XML-tagged blocks below.
+
+## Review checklist
+
+1. Полностью ли выполнена поставленная задача?
+2. Корректность реализации и обработка edge cases.
+3. Тесты: присутствуют, осмысленные, проходят.
+4. Качество кода: стиль, dead code, error handling, очевидные баги.
+5. Out-of-scope изменения и риск регрессий.
+
+## Output
+
+Reply with the XML-tagged blocks below. `<review>` is always required.
+The `<feedback>` block is included **only** when there are critical issues
+that block shipping and the planner must address them in another iteration.
+
+If everything is fine (no follow-up needed):
+
+```
+<review>
+<markdown review report following the checklist above>
+</review>
+```
+
+If a new iteration is required:
+
+```
+<review>
+<markdown review report following the checklist above>
+</review>
+
+<feedback>
+1. <concrete, actionable follow-up>
+2. <...>
+</feedback>
+```
+
+Rules:
+- `<feedback>` contains a numbered list (`1.`, `2.`, …) of specific tasks
+  for the next plan iteration. Minor nits do not belong here — keep them
+  in the review report. Only emit `<feedback>` for issues that genuinely
+  require another round.
+- Be honest: do not invent feedback to look thorough, and do not suppress
+  real problems to avoid an extra iteration.
+- Emit each tag at most once, opening and closing.
+- Do NOT write a literal `</review>` or `</feedback>` inside the contents
+  of a block — the parser stops at the first match. If you must show such
+  a tag as an example, wrap it in a code-fence and avoid the exact closing
+  form.

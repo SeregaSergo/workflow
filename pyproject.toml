@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wf"
+version = "0.1.0"
+description = "Developer pipeline orchestrator (wf)"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "pydantic>=2.6",
+    "PyYAML>=6.0",
+    "jinja2>=3.1",
+    "rich>=13.7",
+    "claude-agent-sdk>=0.1",
+]
+
+[project.scripts]
+wf = "wf.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wf"]
