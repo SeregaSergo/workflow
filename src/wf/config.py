@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
@@ -17,6 +18,36 @@ class ToolSpec(BaseModel):
     cmd: str
 
 
+class McpServerSpec(BaseModel):
+    """Описание MCP-сервера для LLM-фаз. Форма повторяет конфиг
+    claude-agent-sdk / блок `mcpServers` из ~/.claude.json, чтобы запись
+    можно было скопировать почти как есть.
+
+    stdio-сервер: type/command/args/env; http|sse-сервер: type/url/headers.
+    """
+
+    type: str | None = None
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+
+    def to_sdk(self) -> dict[str, Any]:
+        kind = self.type or ("http" if self.url else "stdio")
+        if kind in ("http", "sse"):
+            cfg: dict[str, Any] = {"type": kind, "url": self.url}
+            if self.headers:
+                cfg["headers"] = dict(self.headers)
+            return cfg
+        cfg = {"type": "stdio", "command": self.command}
+        if self.args:
+            cfg["args"] = list(self.args)
+        if self.env:
+            cfg["env"] = dict(self.env)
+        return cfg
+
+
 class WorkflowSpec(BaseModel):
     notify_channel_id: str | None = None
     reviewers: list[str] = Field(default_factory=list)
@@ -27,6 +58,9 @@ class ClaudeSettings(BaseModel):
     permission_mode: str = "bypassPermissions"
     model: str | None = None
     phase_models: dict[str, str] = Field(default_factory=dict)
+    # Какие MCP-серверы (по именам из верхнеуровневого mcp_servers:) доступны
+    # каждой LLM-фазе. Ключ — имя фазы, значение — список имён серверов.
+    phase_mcp_servers: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class Config(BaseModel):
@@ -34,12 +68,35 @@ class Config(BaseModel):
     data_dir: Path = Path("~/wf")
     defaults: Defaults = Field(default_factory=Defaults)
     tools: dict[str, ToolSpec] = Field(default_factory=dict)
+    mcp_servers: dict[str, McpServerSpec] = Field(default_factory=dict)
     claude: ClaudeSettings = Field(default_factory=ClaudeSettings)
     workflows: dict[str, WorkflowSpec] = Field(default_factory=dict)
 
     @property
     def data_dir_path(self) -> Path:
         return Path(os.path.expanduser(str(self.data_dir))).resolve()
+
+    def mcp_for_phase(
+        self, phase: str
+    ) -> tuple[dict[str, dict[str, Any]], list[str], list[str]]:
+        """MCP-конфиг для фазы: (серверы для SDK, паттерны allowed_tools,
+        имена серверов, которых нет в mcp_servers:).
+
+        Серверы, включённые для фазы через claude.phase_mcp_servers, но не
+        описанные в верхнеуровневом mcp_servers:, возвращаются в третьем
+        списке — фаза сама решает, как об этом сообщить.
+        """
+        servers: dict[str, dict[str, Any]] = {}
+        tools: list[str] = []
+        missing: list[str] = []
+        for name in self.claude.phase_mcp_servers.get(phase, []):
+            spec = self.mcp_servers.get(name)
+            if spec is None:
+                missing.append(name)
+                continue
+            servers[name] = spec.to_sdk()
+            tools.append(f"mcp__{name}__*")
+        return servers, tools, missing
 
     def workflow_dir(self, workflow: str) -> Path:
         return self.data_dir_path / "workflow" / workflow

@@ -14,6 +14,34 @@ claude:
   # а остальные фазы оставить на дефолте.
   phase_models:
     plan: claude-opus-4-7
+  # Какие MCP-серверы (по именам из верхнеуровневого mcp_servers: ниже)
+  # доступны каждой LLM-фазе. Ключ — имя фазы, значение — список серверов.
+  # Серверы передаются в claude-agent-sdk напрямую (mcp_servers), а их
+  # инструменты добавляются в allowed_tools как mcp__<server>__*.
+  # phase_mcp_servers:
+  #   explore: [wiki]
+
+# MCP-серверы для LLM-фаз. Форма записи повторяет блок mcpServers из
+# ~/.claude.json, так что конфиг из обычной сессии Claude Code можно
+# скопировать почти как есть. Включать сервер для конкретной фазы — через
+# claude.phase_mcp_servers выше (по умолчанию ни одна фаза MCP не получает).
+#
+# stdio-сервер (локальный процесс):
+#   mcp_servers:
+#     wiki:
+#       type: stdio                # необязательно, stdio по умолчанию
+#       command: /usr/local/bin/wiki
+#       args: ["mcp", "--read-only"]
+#       env: {}
+#
+# http|sse-сервер (удалённый):
+#   mcp_servers:
+#     acme:
+#       type: http                 # либо sse
+#       url: "https://api.example.com/mcp"
+#       headers:
+#         Authorization: "Bearer ${ACME_TOKEN}"
+mcp_servers: {}
 
 # Внешние инструменты, которые вызывают фазы. cmd рендерится через jinja2,
 # доступ к контексту фазы (см. runner.run_tool).

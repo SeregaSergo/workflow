@@ -56,6 +56,13 @@ class ExplorePhase:
 
         cwd = Path(state.worktree) if state.worktree else Path(state.repo_path)
 
+        mcp_servers, mcp_tools, missing = ctx.config.mcp_for_phase(self.name)
+        for name in missing:
+            ctx.console.print(
+                f"[yellow]explore: MCP-сервер '{name}' включён в "
+                f"claude.phase_mcp_servers, но не описан в mcp_servers:[/yellow]"
+            )
+
         summary = claude.run_phase(
             template_name="explore.md.j2",
             template_ctx={
@@ -64,11 +71,12 @@ class ExplorePhase:
             },
             cwd=cwd,
             config=ctx.config,
-            allowed_tools=["Bash"],
+            allowed_tools=["Bash", *mcp_tools],
             setting_sources=["project", "user"],
             events=ctx.events,
             phase=self.name,
             iter=state.iteration,
+            mcp_servers=mcp_servers,
         )
 
         try:

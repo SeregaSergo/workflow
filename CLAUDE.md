@@ -121,6 +121,24 @@ All artifact paths come from [artifacts.py](src/wf/artifacts.py) helpers — nev
   `implement` and `review` to let the LLM read repo state via `Bash` but prevent it from
   committing/checking-out/resetting — the engine controls those.
 
+### MCP-серверы для LLM-фаз
+
+LLM-фазам можно дать доступ к MCP-серверам. Серверы описываются один раз в
+верхнеуровневом `mcp_servers:` конфига (форма записи повторяет блок `mcpServers`
+из `~/.claude.json` — stdio: `command`/`args`/`env`; http|sse: `url`/`headers`),
+а включаются пофазно через `claude.phase_mcp_servers: {<phase>: [<server>, …]}`.
+По умолчанию ни одна фаза MCP не получает.
+
+`Config.mcp_for_phase(phase)` в [config.py](src/wf/config.py) резолвит это в
+`(mcp_servers_dict, ["mcp__<server>__*", …], missing)`; фаза передаёт словарь в
+`claude.run_phase(..., mcp_servers=…)` и добавляет паттерны в `allowed_tools`
+(имена MCP-инструментов — `mcp__<server>__<tool>`). Опираться на
+`setting_sources` для загрузки MCP **нельзя**: так грузится только проектный
+`.mcp.json`, а user-scope серверы из `~/.claude.json` — нет, поэтому сервер
+передаётся в SDK явно. Пока подключено только к `explore`
+([phases/explore.py](src/wf/phases/explore.py)) — для новой фазы повтори тот же
+резолв и проброс.
+
 ### LLM output protocol
 
 Phases that call the LLM parse structured blocks from `summary.text`, not files. Each

@@ -13,6 +13,10 @@ Use {{ fetch_cmd }} <taskId> to get task info and capture the output.
 Read the task carefully. If the description references subtasks or linked tasks that are needed to
 understand scope or context, fetch them too using the same tool with their IDs.
 
+If MCP tools are available to you (e.g. a `wiki`) use them to pull extra context the 
+task references — pages, specs, docs — but only when it
+is actually relevant. Do not go on a research spree; stop as soon as you have enough.
+
 ## Output
 
 Emit your final reply as four independent XML-tagged blocks. Order does not matter.
@@ -31,7 +35,7 @@ Emit your final reply as four independent XML-tagged blocks. Order does not matt
 </main_task_info>
 
 <additional_info>
-<short summary of related tasks as markdown>
+<short summary of related tasks or another context as markdown>
 </additional_info>
 ```
 

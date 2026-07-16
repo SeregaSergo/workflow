@@ -244,6 +244,7 @@ def run_phase(
     model: str | None = None,
     setting_sources: list[str] | None = None,
     hooks: dict[str, Any] | None = None,
+    mcp_servers: dict[str, Any] | None = None,
 ) -> RunSummary:
     from claude_agent_sdk import ClaudeAgentOptions
 
@@ -264,6 +265,8 @@ def run_phase(
         opts_kwargs["setting_sources"] = setting_sources
     if hooks is not None:
         opts_kwargs["hooks"] = hooks
+    if mcp_servers:
+        opts_kwargs["mcp_servers"] = mcp_servers
     options = ClaudeAgentOptions(**opts_kwargs)
 
     events.write(
@@ -274,6 +277,7 @@ def run_phase(
         model=mdl,
         permission_mode=pm,
         cwd=str(cwd),
+        mcp_servers=sorted(mcp_servers) if mcp_servers else [],
     )
 
     text, usage = asyncio.run(_run_query(prompt, options, events, phase, iter, mdl))
