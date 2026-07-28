@@ -14,6 +14,37 @@ from wf.state import UsageData
 _PKG_TEMPLATES = Path(__file__).resolve().parent / "templates"
 _TOOL_RESULT_PREVIEW = 500
 
+# Дописка к пресетному системному промпту Claude Code (дефолтный system_prompt
+# всех LLM-фаз). Пресет написан для интерактивной сессии, поэтому здесь гасим
+# ожидание живого пользователя и фиксируем контракт вывода. Роли фаз описывают
+# шаблоны; пофазные дополнения — через run_phase(system_prompt_append=...).
+_SYSTEM_APPEND_BASE = """\
+# wf pipeline
+
+You are running unattended as one phase of an automated coding pipeline (wf).
+There is no interactive user: nobody reads your messages mid-run, nobody can
+answer a question or confirm anything, so never stop to ask or wait.
+
+Your final reply is parsed by a program. The XML-tagged blocks described in
+the task prompt are the only output contract: emit them exactly as specified
+and keep any prose outside the blocks to a minimum."""
+
+
+def _default_system_prompt(append_extra: str | None) -> dict[str, Any]:
+    append = _SYSTEM_APPEND_BASE
+    if append_extra:
+        append = f"{append}\n\n{append_extra}"
+    return {
+        "type": "preset",
+        "preset": "claude_code",
+        "append": append,
+        # Статичный системный промпт: динамические секции (cwd, git status,
+        # auto-memory) CLI переносит в первое user-сообщение, префикс
+        # промпт-кэша совпадает между фазами и задачами. Старые CLI молча
+        # игнорируют флаг.
+        "exclude_dynamic_sections": True,
+    }
+
 
 class ClaudeRunError(RuntimeError):
     """Поднимается, когда claude-agent-sdk завершился с is_error=True."""
@@ -240,7 +271,8 @@ def run_phase(
     phase: str,
     iter: int,
     permission_mode: str | None = None,
-    system_prompt: str | None = None,
+    system_prompt: str | dict[str, Any] | None = None,
+    system_prompt_append: str | None = None,
     model: str | None = None,
     setting_sources: list[str] | None = None,
     hooks: dict[str, Any] | None = None,
@@ -253,6 +285,11 @@ def run_phase(
     claude_cfg = config.claude
     pm = permission_mode or claude_cfg.permission_mode
     mdl = model or claude_cfg.phase_models.get(phase) or claude_cfg.model
+
+    # None → пресет Claude Code с базовой допиской (+ system_prompt_append);
+    # "" → полностью пустой промпт (тривиальные фазы); str/dict — как есть.
+    if system_prompt is None:
+        system_prompt = _default_system_prompt(system_prompt_append)
 
     opts_kwargs: dict[str, Any] = dict(
         cwd=str(cwd),
@@ -269,6 +306,13 @@ def run_phase(
         opts_kwargs["mcp_servers"] = mcp_servers
     options = ClaudeAgentOptions(**opts_kwargs)
 
+    if isinstance(system_prompt, dict):
+        sp_mode = f"preset:{system_prompt.get('preset', '?')}"
+    elif system_prompt == "":
+        sp_mode = "empty"
+    else:
+        sp_mode = "custom"
+
     events.write(
         phase,
         iter,
@@ -277,6 +321,7 @@ def run_phase(
         model=mdl,
         permission_mode=pm,
         cwd=str(cwd),
+        system_prompt=sp_mode,
         mcp_servers=sorted(mcp_servers) if mcp_servers else [],
     )
 

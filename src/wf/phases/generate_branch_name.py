@@ -40,6 +40,9 @@ class GenerateBranchNamePhase:
             config=ctx.config,
             allowed_tools=[],
             setting_sources=["user"],
+            # Тривиальная генерация слага без тулов — пресет Claude Code тут
+            # не нужен; "" оставляет системный промпт пустым, как раньше.
+            system_prompt="",
             events=ctx.events,
             phase=self.name,
             iter=state.iteration,

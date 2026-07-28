@@ -99,7 +99,14 @@ All artifact paths come from [artifacts.py](src/wf/artifacts.py) helpers — nev
   [src/wf/templates/](src/wf/templates/) and streams SDK messages
   (assistant text, tool_use, tool_result, thinking length, system, result)
   as JSON-line events into the task-wide `events.jsonl`. Returns assistant
-  text and usage data — XML-block parsing happens in the phase.
+  text and usage data — XML-block parsing happens in the phase. По умолчанию
+  фазы получают пресетный системный промпт Claude Code
+  (`{"type": "preset", "preset": "claude_code", "append": …,
+  "exclude_dynamic_sections": True}`): базовый `append`
+  (`_SYSTEM_APPEND_BASE`) гасит интерактивные ожидания пресета — «пользователя
+  нет, финальный ответ парсится программой»; пофазное дополнение передаётся
+  через `system_prompt_append` (см. `plan`), а `system_prompt=""` даёт
+  полностью пустой промпт (так делает `generate_branch_name`).
 - [src/wf/run_log.py](src/wf/run_log.py) — `EventsWriter` (append-only jsonl
   writer used by the engine) and `rerender_summary(events_path, summary_path,
   state)` which the engine calls after every phase to regenerate

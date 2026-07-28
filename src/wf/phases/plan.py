@@ -14,6 +14,14 @@ _SCHEMA = [
     BlockSpec("plan_qa", required=False),
 ]
 
+# Пресет Claude Code склоняет модель задавать уточняющие вопросы в тексте —
+# направляем их в единственный рабочий канал, блок <plan_qa>.
+_SYSTEM_APPEND = (
+    "Phase role: planner. If you are blocked on a decision only a human can "
+    "make, the ONLY channel to reach them is the <plan_qa> block described in "
+    "the task prompt — a question asked any other way will never be seen."
+)
+
 
 class PlanPhase:
     name = "plan"
@@ -73,6 +81,7 @@ class PlanPhase:
             cwd=Path(state.worktree),
             allowed_tools=["Read", "Glob", "Grep"],
             setting_sources=["project", "user"],
+            system_prompt_append=_SYSTEM_APPEND,
             config=ctx.config,
             events=ctx.events,
             phase=self.name,
