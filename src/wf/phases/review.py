@@ -58,7 +58,9 @@ class ReviewPhase:
                 "branch": state.branch,
             },
             cwd=Path(state.worktree),  # type: ignore[arg-type]
-            allowed_tools=["Read", "Glob", "Grep", "Bash"],
+            # read-only ревью: без Write/Edit/Agent; git-мутации дополнительно
+            # режет read-only-git hook ниже.
+            tools=["Read", "Glob", "Grep", "Bash"],
             setting_sources=["project", "user"],
             hooks={
                 "PreToolUse": [

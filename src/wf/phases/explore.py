@@ -56,7 +56,7 @@ class ExplorePhase:
 
         cwd = Path(state.worktree) if state.worktree else Path(state.repo_path)
 
-        mcp_servers, mcp_tools, missing = ctx.config.mcp_for_phase(self.name)
+        mcp_servers, missing = ctx.config.mcp_for_phase(self.name)
         for name in missing:
             ctx.console.print(
                 f"[yellow]explore: MCP-сервер '{name}' включён в "
@@ -71,7 +71,9 @@ class ExplorePhase:
             },
             cwd=cwd,
             config=ctx.config,
-            allowed_tools=["Bash", *mcp_tools],
+            # tools режет только встроенные тулы; MCP-серверы (wiki) приходят
+            # отдельно через mcp_servers и остаются доступны под bypassPermissions.
+            tools=["Bash", "Read", "Glob", "Grep"],
             setting_sources=["project", "user"],
             events=ctx.events,
             phase=self.name,

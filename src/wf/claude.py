@@ -266,12 +266,10 @@ def run_phase(
     template_ctx: dict[str, Any],
     cwd: Path,
     config: Config,
-    allowed_tools: list[str],
     events: EventsWriter,
     phase: str,
     iter: int,
-    disallowed_tools: list[str] | None = None,
-    permission_mode: str | None = None,
+    tools: list[str] | None = None,
     system_prompt: str | dict[str, Any] | None = None,
     system_prompt_append: str | None = None,
     model: str | None = None,
@@ -284,7 +282,6 @@ def run_phase(
     prompt = render_template(template_name, template_ctx)
 
     claude_cfg = config.claude
-    pm = permission_mode or claude_cfg.permission_mode
     mdl = model or claude_cfg.phase_models.get(phase) or claude_cfg.model
 
     # None → пресет Claude Code с базовой допиской (+ system_prompt_append);
@@ -294,15 +291,15 @@ def run_phase(
 
     opts_kwargs: dict[str, Any] = dict(
         cwd=str(cwd),
-        permission_mode=pm,
-        allowed_tools=allowed_tools,
+        permission_mode="bypassPermissions",
         system_prompt=system_prompt,
         model=mdl,
     )
-    # disallowed_tools имеет приоритет над allowed_tools и над bypassPermissions —
-    # так фазу можно жёстко лишить инструмента даже при bypass (см. implement).
-    if disallowed_tools:
-        opts_kwargs["disallowed_tools"] = disallowed_tools
+    # tools — позитивный whitelist встроенных тулов: что вообще доступно фазе.
+    # MCP-тулы им не режутся — они приходят через mcp_servers отдельно.
+    # None → дефолтный набор Claude Code.
+    if tools is not None:
+        opts_kwargs["tools"] = tools
     if setting_sources is not None:
         opts_kwargs["setting_sources"] = setting_sources
     if hooks is not None:
@@ -324,7 +321,7 @@ def run_phase(
         "llm_start",
         template=template_name,
         model=mdl,
-        permission_mode=pm,
+        permission_mode="bypassPermissions",
         cwd=str(cwd),
         system_prompt=sp_mode,
         mcp_servers=sorted(mcp_servers) if mcp_servers else [],

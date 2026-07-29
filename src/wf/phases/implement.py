@@ -74,12 +74,11 @@ class ImplementPhase:
                 "qa_answers": qa_answers,
             },
             cwd=worktree,
-            allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
-            # Жёстко запрещаем спавнить субагентов: исследование — работа фазы
-            # plan, implement должен идти строго по её карте, а не переисследовать
-            # репозиторий заново (это был главный пожиратель токенов). В этом SDK
-            # инструмент субагента зовётся "Agent"; "Task" — на случай дрейфа имён.
-            disallowed_tools=["Agent", "Task"],
+            # tools — позитивный whitelist: implement может ровно это и ничего
+            # больше. Agent (субагент) сюда намеренно не включён → исследование
+            # остаётся работой фазы plan, а implement идёт строго по её карте и
+            # не переисследует репозиторий (это был главный пожиратель токенов).
+            tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
             setting_sources=["project", "user"],
             hooks={
                 "PreToolUse": [

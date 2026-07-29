@@ -5,7 +5,6 @@ defaults:
   max_iterations: 3
 
 claude:
-  permission_mode: bypassPermissions
   # Модель по умолчанию для всех фаз. null = SDK сам выберет.
   model: null
   # Override модели для конкретных фаз. Ключ — имя фазы (explore/plan/
@@ -16,8 +15,8 @@ claude:
     plan: claude-opus-4-7
   # Какие MCP-серверы (по именам из верхнеуровневого mcp_servers: ниже)
   # доступны каждой LLM-фазе. Ключ — имя фазы, значение — список серверов.
-  # Серверы передаются в claude-agent-sdk напрямую (mcp_servers), а их
-  # инструменты добавляются в allowed_tools как mcp__<server>__*.
+  # Серверы передаются в claude-agent-sdk напрямую (mcp_servers); под
+  # bypassPermissions их инструменты (mcp__<server>__*) доступны фазе сразу.
   # phase_mcp_servers:
   #   explore: [wiki]
 

@@ -137,9 +137,11 @@ LLM-фазам можно дать доступ к MCP-серверам. Сер�
 По умолчанию ни одна фаза MCP не получает.
 
 `Config.mcp_for_phase(phase)` в [config.py](src/wf/config.py) резолвит это в
-`(mcp_servers_dict, ["mcp__<server>__*", …], missing)`; фаза передаёт словарь в
-`claude.run_phase(..., mcp_servers=…)` и добавляет паттерны в `allowed_tools`
-(имена MCP-инструментов — `mcp__<server>__<tool>`). Опираться на
+`(mcp_servers_dict, missing)`; фаза передаёт словарь в
+`claude.run_phase(..., mcp_servers=…)`. Под `bypassPermissions` MCP-инструменты
+(`mcp__<server>__<tool>`) становятся доступны автоматически — их **не** нужно
+добавлять ни в `tools`, ни в какой-либо allow-список (`tools` вообще режет только
+встроенные тулы, MCP не трогает). Опираться на
 `setting_sources` для загрузки MCP **нельзя**: так грузится только проектный
 `.mcp.json`, а user-scope серверы из `~/.claude.json` — нет, поэтому сервер
 передаётся в SDK явно. Пока подключено только к `explore`

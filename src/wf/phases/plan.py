@@ -79,7 +79,10 @@ class PlanPhase:
                 "qa_answers": qa_answers,
             },
             cwd=Path(state.worktree),
-            allowed_tools=["Read", "Glob", "Grep"],
+            # plan — единственный исследователь, но строго read-only и без
+            # субагентов: Agent намеренно не входит в whitelist, чтобы фаза
+            # не разбегалась в параллельные Explore (это раздувало токены).
+            tools=["Read", "Glob", "Grep", "Bash"],
             setting_sources=["project", "user"],
             system_prompt_append=_SYSTEM_APPEND,
             config=ctx.config,

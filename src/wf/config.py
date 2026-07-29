@@ -55,7 +55,6 @@ class WorkflowSpec(BaseModel):
 
 
 class ClaudeSettings(BaseModel):
-    permission_mode: str = "bypassPermissions"
     model: str | None = None
     phase_models: dict[str, str] = Field(default_factory=dict)
     # Какие MCP-серверы (по именам из верхнеуровневого mcp_servers:) доступны
@@ -78,16 +77,18 @@ class Config(BaseModel):
 
     def mcp_for_phase(
         self, phase: str
-    ) -> tuple[dict[str, dict[str, Any]], list[str], list[str]]:
-        """MCP-конфиг для фазы: (серверы для SDK, паттерны allowed_tools,
-        имена серверов, которых нет в mcp_servers:).
+    ) -> tuple[dict[str, dict[str, Any]], list[str]]:
+        """MCP-конфиг для фазы: (серверы для SDK, имена серверов, которых нет
+        в mcp_servers:).
+
+        Под bypassPermissions MCP-инструменты доступны фазе автоматически, как
+        только сервер передан в SDK, — отдельный allow-список не нужен.
 
         Серверы, включённые для фазы через claude.phase_mcp_servers, но не
-        описанные в верхнеуровневом mcp_servers:, возвращаются в третьем
+        описанные в верхнеуровневом mcp_servers:, возвращаются во втором
         списке — фаза сама решает, как об этом сообщить.
         """
         servers: dict[str, dict[str, Any]] = {}
-        tools: list[str] = []
         missing: list[str] = []
         for name in self.claude.phase_mcp_servers.get(phase, []):
             spec = self.mcp_servers.get(name)
@@ -95,8 +96,7 @@ class Config(BaseModel):
                 missing.append(name)
                 continue
             servers[name] = spec.to_sdk()
-            tools.append(f"mcp__{name}__*")
-        return servers, tools, missing
+        return servers, missing
 
     def workflow_dir(self, workflow: str) -> Path:
         return self.data_dir_path / "workflow" / workflow

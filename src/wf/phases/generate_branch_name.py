@@ -38,7 +38,7 @@ class GenerateBranchNamePhase:
             },
             cwd=cwd,
             config=ctx.config,
-            allowed_tools=[],
+            tools=[],  # тривиальная генерация слага — встроенные тулы не нужны
             setting_sources=["user"],
             # Тривиальная генерация слага без тулов — пресет Claude Code тут
             # не нужен; "" оставляет системный промпт пустым, как раньше.
