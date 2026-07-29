@@ -270,6 +270,7 @@ def run_phase(
     events: EventsWriter,
     phase: str,
     iter: int,
+    disallowed_tools: list[str] | None = None,
     permission_mode: str | None = None,
     system_prompt: str | dict[str, Any] | None = None,
     system_prompt_append: str | None = None,
@@ -298,6 +299,10 @@ def run_phase(
         system_prompt=system_prompt,
         model=mdl,
     )
+    # disallowed_tools имеет приоритет над allowed_tools и над bypassPermissions —
+    # так фазу можно жёстко лишить инструмента даже при bypass (см. implement).
+    if disallowed_tools:
+        opts_kwargs["disallowed_tools"] = disallowed_tools
     if setting_sources is not None:
         opts_kwargs["setting_sources"] = setting_sources
     if hooks is not None:

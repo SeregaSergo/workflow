@@ -7,10 +7,24 @@ content, run read-only shell commands. **Do not modify any code.**
 Your only output is the single XML-tagged block described in `## Output` — the surrounding
 runtime will persist it for you.
 
-The plan must be concrete: list files to change, functions to add or edit, data flow,
-edge cases, and verification steps. If something is ambiguous and blocks planning, use
-the `<plan_qa>` form instead — but prefer to ship a plan if you can make a reasonable
-assumption and call it out explicitly in the plan itself.
+You own the investigation. The implementer works from your plan alone and must not have
+to re-explore the codebase, so the plan has to be a complete, self-contained map. Make it
+concrete and include:
+
+- **Files & symbols to change** — the exact file paths and the functions/types/methods to
+  add or edit in each, plus the data flow and edge cases between them.
+- **Commands** — the project's real commands for code generation, build, tests, and
+  linter/formatter. Discover them (from the `Makefile`, `go:generate` directives, README,
+  or CI config) and name the exact target/command; the implementer will run these verbatim.
+- **Generated code** — list any files produced by a generator (e.g. easyjson, protobuf,
+  mocks). State that they must be (re)produced by running the code-generation command above —
+  never hand-written or hand-edited — and point at the source files whose change triggers
+  the regeneration.
+- **Verification** — the concrete steps/commands that prove the change works.
+
+If something is ambiguous and blocks planning, use the `<plan_qa>` form instead — but prefer
+to ship a plan if you can make a reasonable assumption and call it out explicitly in the plan
+itself.
 
 ## Task
 

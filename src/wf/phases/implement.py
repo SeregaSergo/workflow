@@ -75,6 +75,11 @@ class ImplementPhase:
             },
             cwd=worktree,
             allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
+            # Жёстко запрещаем спавнить субагентов: исследование — работа фазы
+            # plan, implement должен идти строго по её карте, а не переисследовать
+            # репозиторий заново (это был главный пожиратель токенов). В этом SDK
+            # инструмент субагента зовётся "Agent"; "Task" — на случай дрейфа имён.
+            disallowed_tools=["Agent", "Task"],
             setting_sources=["project", "user"],
             hooks={
                 "PreToolUse": [
