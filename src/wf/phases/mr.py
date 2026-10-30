@@ -5,7 +5,7 @@ from pathlib import Path
 
 from wf.config import Config
 from wf.phases.base import PhaseResult, RunContext
-from wf.runner import run_tool
+from wf.runner import run_tool, tool_context
 from wf.state import State
 
 
@@ -50,13 +50,7 @@ class MrPhase:
         result = run_tool(
             ctx.config,
             "create_mr",
-            ctx={
-                "branch": state.branch or "",
-                "base_branch": state.base_branch,
-                "task_id": state.task_id,
-                "task_url": state.task_url or "",
-                "worktree": str(worktree),
-            },
+            ctx={**tool_context(state), "worktree": str(worktree)},
             cwd=worktree,
         )
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -66,6 +60,7 @@ class MrPhase:
             "external_tool",
             name="create_mr",
             cmd=result.cmd,
+            shell=result.shell,
             exit_code=result.exit_code,
             duration_ms=duration_ms,
             stdout_preview=result.stdout[:500],

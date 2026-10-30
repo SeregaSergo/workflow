@@ -18,8 +18,8 @@ _SCHEMA = [
 ]
 
 
-def _strip_task_id_placeholder(cmd: str) -> str:
-    return re.sub(r"\s*\{\{\s*task_id\s*\}\}\s*", " ", cmd).strip()
+def _strip_placeholder(cmd: str, name: str) -> str:
+    return re.sub(r"\s*\{\{\s*" + name + r"\s*\}\}\s*", " ", cmd).strip()
 
 
 class ExplorePhase:
@@ -41,7 +41,15 @@ class ExplorePhase:
         spec = config.tools.get("fetch_task")
         if spec is None:
             return None
-        return _strip_task_id_placeholder(spec.cmd)
+        return _strip_placeholder(spec.cmd, "task_id")
+
+    def _fetch_article_cmd(self, config: Config) -> str:
+        # Опциональный инструмент: если статьи в трекере не используются,
+        # его просто нет в tools: — фаза работает как раньше.
+        spec = config.tools.get("fetch_article")
+        if spec is None:
+            return ""
+        return _strip_placeholder(spec.cmd, "article_id")
 
     def run(self, state: State, ctx: RunContext) -> PhaseResult:
         task_md = artifacts.task(ctx.config, state)
@@ -53,6 +61,8 @@ class ExplorePhase:
             return PhaseResult.failed(
                 "tool 'fetch_task' is not configured in tools:"
             )
+
+        fetch_article_cmd = self._fetch_article_cmd(ctx.config)
 
         cwd = Path(state.worktree) if state.worktree else Path(state.repo_path)
 
@@ -68,6 +78,7 @@ class ExplorePhase:
             template_ctx={
                 "task_id": state.task_id,
                 "fetch_cmd": fetch_cmd,
+                "fetch_article_cmd": fetch_article_cmd,
             },
             cwd=cwd,
             config=ctx.config,

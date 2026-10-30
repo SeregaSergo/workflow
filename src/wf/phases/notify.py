@@ -7,7 +7,7 @@ from pathlib import Path
 from wf.claude import render_template
 from wf.config import Config
 from wf.phases.base import PhaseResult, RunContext
-from wf.runner import run_tool
+from wf.runner import run_tool, tool_context
 from wf.state import State
 
 _REVIEWERS_PER_MR = 2
@@ -62,7 +62,12 @@ class NotifyPhase:
         result = run_tool(
             ctx.config,
             "notify",
-            ctx={"channel_id": channel_id, "message": message},
+            ctx={
+                **tool_context(state),
+                "channel_id": channel_id,
+                "message": message,
+                "reviewers": ", ".join(picked),
+            },
             cwd=cwd,
         )
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -72,6 +77,7 @@ class NotifyPhase:
             "external_tool",
             name="notify",
             cmd=result.cmd,
+            shell=result.shell,
             exit_code=result.exit_code,
             duration_ms=duration_ms,
             stdout_preview=result.stdout[:500],

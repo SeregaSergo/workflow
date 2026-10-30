@@ -45,25 +45,44 @@ mcp_servers: {}
 # Внешние инструменты, которые вызывают фазы. cmd рендерится через jinja2,
 # доступ к контексту фазы (см. runner.run_tool).
 #
-# Пример create_mr (используется фазой `mr`):
-#   - cwd = worktree
-#   - в контексте доступны: branch, base_branch, task_id, task_url, worktree
-#   - команда должна писать URL MR последней непустой строкой stdout
-#     (если ваш CLI этого не делает — заверните вызов в скрипт)
+# В контексте любого инструмента доступны поля задачи (runner.tool_context):
+#   task_id, task_url, task_title, workflow, branch, base_branch,
+#   repo_path, worktree, mr_url, iteration
+# Незаполненные поля приходят пустой строкой, а не ошибкой рендера.
+# Плюс пофазные ключи:
+#   fetch_task    (фаза `explore`, обязателен): {{task_id}}
+#   fetch_article (фаза `explore`, необязателен): {{article_id}}
+#   create_mr (фаза `mr`, cwd = worktree): —
+#   notify    (фаза `notify`, cwd = worktree): channel_id, reviewers,
+#             message (готовая отрендеренная строка с возможными \n внутри)
 #
-# Пример notify (используется фазой `notify`):
-#   - cwd = worktree
-#   - в контексте доступны: channel_id, message (готовая отрендеренная строка
-#     с возможными \n внутри)
-#   - cmd рендерится через jinja2, затем разбивается shlex.split — если в
-#     аргументе могут быть пробелы/переводы строк/кавычки, прогоняйте его
-#     через фильтр |shquote (обёртка над shlex.quote), иначе argv «расползётся»
+# Разбор команды:
+#   - по умолчанию отрендеренная строка разбивается shlex.split и запускается
+#     напрямую, без шелла: $VAR не раскрывается, ~ — только в виде ~/ или ~user/
+#   - если в самом шаблоне cmd есть shell-операторы (&& || ; | & > < $( `),
+#     команда уходит в /bin/sh -c целиком. Проверяется шаблон, а не значения:
+#     `|` внутри {{...}} — это jinja-фильтр и шелл не включает, а метасимволы
+#     из подставленного текста ничего не переключают
+#   - аргументы с пробелами/переводами строк/кавычками прогоняйте через
+#     фильтр |shquote (обёртка над shlex.quote) — в обоих режимах
 #
 # tools:
+#   # explore не запускает эти две команды сам: из cmd вырезается плейсхолдер
+#   # ({{task_id}} / {{article_id}}), а остаток уходит в промпт как команда,
+#   # которую модель вызывает через Bash с нужным id.
+#   fetch_task:
+#     cmd: "youtrack get {{task_id}}"
+#   fetch_article:
+#     cmd: "youtrack article get {{article_id}}"
 #   create_mr:
 #     cmd: "glab mr create --source-branch {{branch}} --target {{base_branch}} --title {{task_id|shquote}} --yes"
 #   notify:
 #     cmd: "mynotify {{channel_id}} {{message|shquote}}"
+#   # цепочка: уведомление в чат + комментарий в трекер
+#   notify:
+#     cmd: >-
+#       mynotify {{channel_id}} {{message|shquote}}
+#       && youtrack add-comment {{task_id}} {{("мр " ~ mr_url)|shquote}}
 tools: {}
 
 workflows:

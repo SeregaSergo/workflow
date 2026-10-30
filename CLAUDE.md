@@ -112,8 +112,16 @@ All artifact paths come from [artifacts.py](src/wf/artifacts.py) helpers — nev
   state)` which the engine calls after every phase to regenerate
   `<task_dir>/summary.md` from the full event stream.
 - [src/wf/runner.py](src/wf/runner.py) — `run_tool(name, ctx)` renders `tools.<name>.cmd`
-  via jinja2 and shells out with `subprocess.run` (no shell=True; `shlex.split`).
-  `run_shell()` is the lower-level helper used by `git.py`.
+  via jinja2 and runs it with `subprocess.run`. By default the rendered string is
+  `shlex.split` and executed directly (no shell); if the **template** contains shell
+  operators (`needs_shell` — jinja expressions are stripped first so that `|shquote`
+  isn't mistaken for a pipe), the rendered string goes to `/bin/sh -c` instead, which is
+  what makes `cmd: "a && b"` chains work. The mode is decided by the config author's
+  template, never by interpolated values. `tool_context(state)` builds the base context
+  every tool gets (`task_id`, `task_url`, `task_title`, `workflow`, `branch`,
+  `base_branch`, `repo_path`, `worktree`, `mr_url`, `iteration`; empty values render as
+  `""`) — phases spread it and add their own keys. `run_shell()` is the lower-level
+  helper used by `git.py`.
 - [src/wf/git.py](src/wf/git.py) — worktree operations. Worktrees are created at
   `<task_dir>/worktree/<branch>` (under `data_dir`, not next to the repo as the older
   plan.md describes). `copy_claude_dir` only copies the `CLAUDE_ALLOW_LIST` entries
@@ -179,6 +187,26 @@ The canonical implementation is now [phases/plan.py](src/wf/phases/plan.py), not
 convention: it writes `plan_qa_<iter>.md.template` with questions, asks the user to fill
 it and rename to `plan_qa_<iter>.md`, then on re-entry sees the renamed file and proceeds.
 Don't add a separate `*_qa_answers.md` file for new phases — match this pattern.
+
+### Fetch-команды фазы `explore`
+
+[phases/explore.py](src/wf/phases/explore.py) не запускает трекерные утилиты через
+`run_tool` — оно берёт `tools.<name>.cmd`, вырезает из шаблона плейсхолдер id
+(`_strip_placeholder`) и подставляет остаток в промпт как команду, которую модель сама
+вызывает через `Bash` с нужным id:
+
+| tool | плейсхолдер | переменная шаблона | обязателен |
+|---|---|---|---|
+| `fetch_task` | `{{task_id}}` | `fetch_cmd` | да (`required_tools`) |
+| `fetch_article` | `{{article_id}}` | `fetch_article_cmd` | нет |
+
+`fetch_article` — для случая, когда задача ссылается на статью-документацию. Его нет в
+`required_tools()` намеренно: без него фаза работает как раньше, а
+[templates/explore.md.j2](src/wf/templates/explore.md.j2) просто не рендерит блок про
+статьи (`{% if fetch_article_cmd %}`). Добавляя ещё одну такую команду, повтори этот
+паттерн: пустая строка в `template_ctx` + `{% if %}` в шаблоне, а не новый обязательный
+инструмент — иначе сломаются существующие конфиги на проверке в
+[cli.py](src/wf/cli.py) (`_get_workflow`).
 
 ### The `implement` phase contract
 

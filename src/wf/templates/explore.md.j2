@@ -12,7 +12,12 @@ You HAVE TO understand when to stop (you don't need a lot information - only rel
 Use {{ fetch_cmd }} <taskId> to get task info and capture the output.
 Read the task carefully. If the description references subtasks or linked tasks that are needed to
 understand scope or context, fetch them too using the same tool with their IDs.
-
+{% if fetch_article_cmd %}
+If the task (or a linked task) references an article / documentation page, fetch it with
+{{ fetch_article_cmd }} <articleId> and capture the output. The article id is the part
+identifying the page in its link. Fetch an article only when it is actually needed to
+understand the task — take from it just the relevant part, not the whole page.
+{% endif %}
 If MCP tools are available to you (e.g. a `wiki`) use them to pull extra context the 
 task references — pages, specs, docs — but only when it
 is actually relevant. Do not go on a research spree; stop as soon as you have enough.
