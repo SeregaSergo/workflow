@@ -1,0 +1,123 @@
+## Your job
+
+Implement the task below in the current worktree, end to end: investigate the codebase,
+work out a plan, apply the change, and get it green. The phase will commit your changes
+after you finish.
+
+## Task
+
+```
+{{ task_summary }}
+```
+
+{% if previous_feedback %}
+## Feedback from previous review
+
+The branch already contains commits from earlier iterations, and the review found the
+critical issues below. You MUST address every point on top of the existing changes. Do
+not silently drop items — either fix them or explain in the plan why a given point does
+not apply.
+
+```
+{{ previous_feedback }}
+```
+{% endif %}
+{% if qa_answers %}
+## Answers to your previous clarifying questions
+
+The human answered the questions you asked last time. Use these answers and do not
+ask the same questions again.
+
+```
+{{ qa_answers }}
+```
+{% endif %}
+
+## How to work
+
+1. **Investigate.** Start with `git status` / `git diff`: the worktree may already hold
+   uncommitted changes from an interrupted earlier run of this phase — continue from them
+   instead of starting over. Then read the code relevant to the task and discover the
+   project's real commands for code generation, build, tests, and linter/formatter (from
+   the `Makefile`, `go:generate` directives, README, or CI config).
+2. **Plan.** Before editing, decide which files and symbols to change, the data flow and
+   edge cases between them, which generated files are affected, and how you will verify
+   the change. If something is ambiguous and genuinely blocks the work, stop here and
+   reply with `<plan_qa>` (see `## Output`) — before modifying any code. Prefer making a
+   reasonable assumption and calling it out explicitly in the plan.
+3. **Implement.** Apply the code changes and add/update tests.
+4. **Verify.** Run the build, tests, linter, and formatter you discovered; if anything
+   fails, fix the code until it passes.
+
+## Rules
+
+- Generated code: when the change touches generated files (easyjson, protobuf, mocks, …),
+  (re)generate them by running the project's code-generation command (e.g.
+  `make generate` or `go generate ./...`). NEVER hand-write, hand-edit, or
+  reverse-engineer generated output — filenames, hashes, or marshaling code. If
+  generation fails, fix the source or the generator config and run it again.
+- Do not clutter the code with comments. Add a comment only when it is genuinely needed
+  to explain non-obvious logic, and write such comments in Russian. Do not restate what
+  the code already says, and do not leave narration or step-by-step commentary.
+- Do NOT run any git command that mutates the repo (`add`, `commit`, `push`,
+  `checkout`, ...) — these will be blocked. Read-only git commands ARE allowed and
+  encouraged for orienting yourself (`status`, `diff`, `log`, `show`, ...).
+- Do not edit anything outside the worktree, and do not create a merge request.
+
+## Output
+
+Reply with **exactly one** of the two forms below — pick the one that fits.
+
+When the change is implemented and verified:
+
+```
+<plan>
+<the plan you followed, in markdown: files and symbols changed, data flow and edge
+cases, generated code, verification commands you ran and their outcome, and any
+assumptions you made>
+</plan>
+
+<commit_message>
+<one short, imperative subject line summarizing this change>
+</commit_message>
+```
+
+If something is genuinely blocking and you must ask the human (only before modifying
+any code):
+
+```
+<plan_qa>
+## Вопрос 1
+<short, focused question>
+
+## Ответ
+
+
+## Вопрос 2
+<short, focused question>
+
+## Ответ
+
+</plan_qa>
+```
+
+Rules for the commit message:
+- a single line, max 72 characters
+- imperative mood ("Add X", "Fix Y" — not "Added"/"Fixes")
+- describe the change at the level of intent, not low-level edits
+- no trailing period, no surrounding quotes
+
+Rules for `<plan_qa>`:
+- maximum 5 questions
+- number them as `## Вопрос N`
+- after each question put a `## Ответ` heading followed by a blank line for the answer
+- if `previous_feedback` was provided above, prefer implementing — the feedback already
+  tells you what to do; do not stall on new questions unless absolutely necessary
+
+General rules:
+- emit `<plan_qa>` alone, or `<plan>` together with `<commit_message>` — never mix the
+  two forms
+- do NOT write a literal closing tag (e.g. `</plan>`, `</plan_qa>`, or
+  `</commit_message>`) inside the contents of a block — the parser stops at the first
+  match. If you need to show XML/HTML in an example, wrap it in a code-fence and avoid
+  the exact closing form of these tags.

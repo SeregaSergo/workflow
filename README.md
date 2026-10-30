@@ -9,8 +9,8 @@
 ## Конвейер
 
 ```
-explore → generate_branch_name → prepare → plan → implement → review → mr → notify → cleanup_worktree
-                                              ↑________________________|
+explore → generate_branch_name → prepare → coding → review → mr → notify → cleanup_worktree
+                                              ↑_________|
                                           (backward edge, если ревью нашло критичные замечания)
 ```
 
@@ -19,15 +19,14 @@ explore → generate_branch_name → prepare → plan → implement → review �
 | `explore` | Читает задачу из трекера, исследует контекст, формулирует заголовок и открытые вопросы | LLM + внешний инструмент |
 | `generate_branch_name` | Генерирует имя ветки по задаче | LLM |
 | `prepare` | Переключается на базовую ветку, тянет изменения, создаёт изолированный `git worktree`, копирует разрешённые части `.claude/` | git |
-| `plan` | Строит подробный план реализации; при необходимости задаёт уточняющие вопросы (QA-петля) | LLM |
-| `implement` | Меняет код по плану и делает коммит (единственная фаза, мутирующая worktree) | LLM |
-| `review` | Делает ревью diff'а; при критичных замечаниях возвращает на `plan` со следующей итерацией | LLM + внешний инструмент |
+| `coding` | Исследует код, строит план (сохраняется артефактом), меняет код и делает коммит — единственная фаза, мутирующая worktree; при необходимости задаёт уточняющие вопросы (QA-петля) | LLM |
+| `review` | Делает ревью diff'а; при критичных замечаниях возвращает на `coding` со следующей итерацией | LLM + внешний инструмент |
 | `mr` | Создаёт merge request | внешний инструмент `create_mr` |
 | `notify` | Отправляет уведомление о MR в чат | внешний инструмент `notify` |
 | `cleanup_worktree` | Удаляет worktree, созданный в `prepare` | git |
 
 
-Цикл `review → plan` ограничен `max_iterations` (по умолчанию 3).
+Цикл `review → coding` ограничен `max_iterations` (по умолчанию 3).
 
 ## Требования
 
@@ -69,13 +68,13 @@ make uninstall
 data_dir: ~/wf            # где хранятся state и артефакты всех задач
 
 defaults:
-  max_iterations: 3       # потолок цикла review → plan
+  max_iterations: 3       # потолок цикла review → coding
 
 claude:
   permission_mode: bypassPermissions
   model: null             # модель по умолчанию для всех фаз (null = выбирает SDK)
   phase_models:           # override модели по фазам
-    plan: claude-opus-4-7
+    coding: claude-opus-4-7
 
 # Внешние утилиты, которые шеллятся фазами. cmd рендерится через jinja2.
 tools:
@@ -167,7 +166,7 @@ wf remove ABC-123 -y
 ### Цикл human-in-the-loop (QA)
 
 Когда фаза нуждается в уточнениях, она пишет файл с вопросами и выходит с кодом 2.
-CLI печатает оба пути. Для `plan` это соглашение «переименуй файл»: фаза создаёт
+CLI печатает оба пути. Для `coding` это соглашение «переименуй файл»: фаза создаёт
 `plan_qa_<iter>.md.template`, вы заполняете его и переименовываете в
 `plan_qa_<iter>.md`, затем `wf resume` — фаза увидит ответы и продолжит.
 

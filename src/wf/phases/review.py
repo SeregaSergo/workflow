@@ -33,14 +33,12 @@ class ReviewPhase:
     def is_ready(self, config: Config, state: State) -> bool:
         return (
             artifacts.task(config, state).exists()
-            and artifacts.plan(config, state).exists()
             and state.worktree is not None
             and Path(state.worktree).exists()
         )
 
     def run(self, state: State, ctx: RunContext) -> PhaseResult:
         task_md = artifacts.task(ctx.config, state)
-        plan_md = artifacts.plan(ctx.config, state)
         review_md = artifacts.review(ctx.config, state)
         feedback_md = artifacts.feedback(ctx.config, state)
 
@@ -48,7 +46,6 @@ class ReviewPhase:
             return PhaseResult.ok()
 
         task_summary = task_md.read_text(encoding="utf-8")
-        plan_summary = plan_md.read_text(encoding="utf-8")
 
         summary = claude.run_phase(
             template_name="review.md.j2",

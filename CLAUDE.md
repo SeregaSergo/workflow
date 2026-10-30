@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project
 
 `wf` is a Python CLI that drives a software task through a linear pipeline of phases
-(`explore → generate_branch_name → prepare → plan → implement → review → mr → notify →
-cleanup_worktree`) with a backward edge from `review` to `plan` when review reports
+(`explore → generate_branch_name → prepare → coding → review → mr → notify →
+cleanup_worktree`) with a backward edge from `review` to `coding` when review reports
 critical issues. The intent and phase contracts are specified in
 [docs/phases.md](docs/phases.md), the state schema in [docs/State.md](docs/State.md),
 and the architecture in [docs/plan.md](docs/plan.md). Phase docs and many comments are
@@ -16,8 +16,8 @@ Phases that need an LLM call `claude-agent-sdk` (which itself talks to `claude`)
 that need external systems (task tracker fetch, diff, MR creation, chat notifications) shell
 out to user-defined binaries declared under `tools:` in the YAML config.
 
-Implementation status: all phases (`explore`, `generate_branch_name`, `prepare`, `plan`,
-`implement`, `review`, `mr`, `notify`, `cleanup_worktree`) are functional.
+Implementation status: all phases (`explore`, `generate_branch_name`, `prepare`, `coding`,
+`review`, `mr`, `notify`, `cleanup_worktree`) are functional.
 
 ## Common commands
 
@@ -66,7 +66,7 @@ Config and data live in two separate places:
 └── artifacts/
     ├── task.md
     ├── plan_<iter>.md
-    ├── plan_qa_<iter>.md.template   # written by plan phase when it needs answers
+    ├── plan_qa_<iter>.md.template   # written by coding phase when it needs answers
     ├── plan_qa_<iter>.md            # filled by user (rename .template → this)
     ├── review_<iter>.md, feedback_<iter>.md
     └── worktree/<branch>/    # actual git worktree lives under task_dir
@@ -85,7 +85,7 @@ All artifact paths come from [artifacts.py](src/wf/artifacts.py) helpers — nev
   on `failed` it sets `terminal=failed`.
 - [src/wf/workflow.py](src/wf/workflow.py) + [src/wf/workflows/coding.py](src/wf/workflows/coding.py)
   — a `Workflow` is `{phases, start, transitions}`. Transitions are pure functions
-  `State -> next_phase_name | None`. The `review → plan` loop and `max_iterations` cap
+  `State -> next_phase_name | None`. The `review → coding` loop and `max_iterations` cap
   live in `review_next` in [coding.py](src/wf/workflows/coding.py).
 - [src/wf/state.py](src/wf/state.py) — pydantic v2 `State` model; `save()` is atomic
   (tmp file + `fsync` + `os.replace`). `current_stage` and `iteration` are the source of
@@ -105,7 +105,7 @@ All artifact paths come from [artifacts.py](src/wf/artifacts.py) helpers — nev
   "exclude_dynamic_sections": True}`): базовый `append`
   (`_SYSTEM_APPEND_BASE`) гасит интерактивные ожидания пресета — «пользователя
   нет, финальный ответ парсится программой»; пофазное дополнение передаётся
-  через `system_prompt_append` (см. `plan`), а `system_prompt=""` даёт
+  через `system_prompt_append` (см. `coding`), а `system_prompt=""` даёт
   полностью пустой промпт (так делает `generate_branch_name`).
 - [src/wf/run_log.py](src/wf/run_log.py) — `EventsWriter` (append-only jsonl
   writer used by the engine) and `rerender_summary(events_path, summary_path,
@@ -133,7 +133,7 @@ All artifact paths come from [artifacts.py](src/wf/artifacts.py) helpers — nev
   `claude-agent-sdk` `PreToolUse` hook that inspects every Bash command, splits on shell
   metacharacters, and blocks any `git` invocation whose first positional subcommand isn't
   in `_GIT_READONLY_SUBCOMMANDS` (status/diff/log/show/blame/ls-files/etc). Used by
-  `implement` and `review` to let the LLM read repo state via `Bash` but prevent it from
+  `coding` and `review` to let the LLM read repo state via `Bash` but prevent it from
   committing/checking-out/resetting — the engine controls those.
 
 ### MCP-серверы для LLM-фаз
@@ -167,9 +167,8 @@ matter — each tag is looked up independently. Current blocks:
 | Phase | Blocks (see [phases/](src/wf/phases/)) |
 |---|---|
 | `explore` | `<task_url>`, `<task_title>`, `<additional_info>` (all optional) + required `<main_task_info>` |
-| `plan` | `<plan_ready>` *xor* `<plan_qa>` (both optional in schema; phase rejects the "both present" case) |
-| `implement` | `<commit_message>` (subject only, `allow_empty=True`; falls back if missing or empty) |
-| `review` | `<review>` (required) + optional `<feedback>` (its presence sets `state.last_review_has_feedback`, which drives the `review → plan` loop) |
+| `coding` | `<plan_qa>` *xor* (`<plan>` + `<commit_message>`); all optional in schema. `<plan_qa>` wins if present. `<plan>` → `plan_<iter>.md` (yellow warning if missing). `<commit_message>` is subject only, `allow_empty=True`; falls back if missing or empty |
+| `review` | `<review>` (required) + optional `<feedback>` (its presence sets `state.last_review_has_feedback`, which drives the `review → coding` loop) |
 
 When adding an LLM phase, prefer this XML-tag pattern over writing files from the
 prompt — it's easier to validate and less fragile than relying on the model to use
@@ -182,8 +181,8 @@ When a phase needs clarifications it writes a questions file and returns
 with code 2. User edits the answers file, runs `wf resume`, and the phase reads it on
 re-entry.
 
-The canonical implementation is now [phases/plan.py](src/wf/phases/plan.py), not
-`explore.py` (explore currently has no QA loop). Plan uses a single-file rename
+The canonical implementation is now [phases/coding.py](src/wf/phases/coding.py), not
+`explore.py` (explore currently has no QA loop). Coding uses a single-file rename
 convention: it writes `plan_qa_<iter>.md.template` with questions, asks the user to fill
 it and rename to `plan_qa_<iter>.md`, then on re-entry sees the renamed file and proceeds.
 Don't add a separate `*_qa_answers.md` file for new phases — match this pattern.
@@ -208,28 +207,34 @@ Don't add a separate `*_qa_answers.md` file for new phases — match this patter
 инструмент — иначе сломаются существующие конфиги на проверке в
 [cli.py](src/wf/cli.py) (`_get_workflow`).
 
-### The `implement` phase contract
+### The `coding` phase contract
 
-[phases/implement.py](src/wf/phases/implement.py) is the only phase that mutates the
-worktree. It:
+[phases/coding.py](src/wf/phases/coding.py) (formerly separate `plan` + `implement`) is
+the only phase that mutates the worktree. One LLM session investigates, plans, edits and
+verifies. It:
 
 1. Snapshots `HEAD` before invoking the LLM.
-2. Runs the LLM with `Read/Write/Edit/Glob/Grep/Bash` and the read-only-git hook from
-   [hooks.py](src/wf/hooks.py) — so the model can inspect repo state but **cannot** commit.
-3. After the run, requires `git status --porcelain` to be non-empty (or fails:
-   "Claude не внёс изменений").
-4. Extracts `<commit_message>` (≤72 chars, sanitized) — falls back to
-   `implement plan (iteration N)` with a yellow warning if absent or empty.
+2. Runs the LLM with `Read/Write/Edit/Glob/Grep/Bash` (no `Agent`) and the read-only-git
+   hook from [hooks.py](src/wf/hooks.py) — so the model can inspect repo state but
+   **cannot** commit.
+3. If the reply has `<plan_qa>` — writes `plan_qa_<iter>.md.template` and returns
+   `needs_human_input`. Uncommitted changes are left in the worktree; the template tells
+   the model to check `git status`/`git diff` on re-entry and continue from them.
+4. Otherwise writes `<plan>` to `plan_<iter>.md` (yellow warning if absent), then
+   requires `git status --porcelain` to be non-empty (or fails: "Claude не внёс
+   изменений").
+5. Extracts `<commit_message>` (≤72 chars, sanitized) — falls back to
+   `implement task (iteration N)` with a yellow warning if absent or empty.
 5. Runs `git add -A && git commit -m <subject>`, then asserts the worktree is clean,
    `HEAD` moved, and `commits_ahead(worktree, base_ref) > 0` — otherwise fails so a
    downstream MR can't be empty.
 
 If you change this contract, also update the template at
-[templates/implement.md.j2](src/wf/templates/implement.md.j2).
+[templates/coding.md.j2](src/wf/templates/coding.md.j2).
 
 ### Adding a new phase
 
-1. Implement the `Phase` protocol — see [phases/plan.py](src/wf/phases/plan.py) for the
+1. Implement the `Phase` protocol — see [phases/coding.py](src/wf/phases/coding.py) for the
    canonical LLM + QA pattern, or [phases/explore.py](src/wf/phases/explore.py) for a
    simpler LLM-only example.
 2. Register it in [phases/__init__.py](src/wf/phases/__init__.py).
@@ -284,7 +289,7 @@ Transitions — **pure functions** `State -> str | RepeatAt | None` и не до
   `<task_dir>/summary.md` is regenerated by the engine after every phase.
 - Russian is used for docs and user-facing CLI messages — match existing tone when
   editing those; code identifiers and comments-on-logic stay in English.
-- LLM-фазы (`explore`, `plan`, `implement`, `review`) запускаются с
+- LLM-фазы (`explore`, `coding`, `review`) запускаются с
   `setting_sources=["project", "user"]`, поэтому в контекст модели подтягивается
   не только проектный `CLAUDE.md`, но и закоммиченный `.claude/settings.json` /
   `.claude/settings.local.json` из репо, если такие есть. Это сознательная

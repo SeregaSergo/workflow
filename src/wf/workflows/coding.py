@@ -10,7 +10,7 @@ def review_next(s: State) -> str | RepeatAt | None:
         return "mr"
     if s.iteration >= s.max_iterations:
         return None
-    return RepeatAt("plan")
+    return RepeatAt("coding")
 
 
 coding = Workflow(
@@ -21,8 +21,7 @@ coding = Workflow(
             "explore",
             "generate_branch_name",
             "prepare",
-            "plan",
-            "implement",
+            "coding",
             "review",
             "mr",
             "notify",
@@ -33,9 +32,8 @@ coding = Workflow(
     transitions={
         "explore": lambda _s: "generate_branch_name",
         "generate_branch_name": lambda _s: "prepare",
-        "prepare": lambda _s: "plan",
-        "plan": lambda _s: "implement",
-        "implement": lambda _s: "review",
+        "prepare": lambda _s: "coding",
+        "coding": lambda _s: "review",
         "review": review_next,
         "mr": lambda _s: "notify",
         "notify": lambda _s: "cleanup_worktree",
