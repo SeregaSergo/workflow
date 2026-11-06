@@ -53,6 +53,22 @@ def previous_feedback(config: Config, state: State) -> Path | None:
     return p if p.exists() else None
 
 
+def fix_brief(config: Config, state: State) -> Path:
+    return _dir(config, state) / f"fix_brief_{state.fix_rounds}.md"
+
+
+def mr_comments(config: Config, state: State) -> Path:
+    return _dir(config, state) / f"mr_comments_{state.fix_rounds}.md"
+
+
+def fix_settings_backup(config: Config, state: State) -> Path:
+    return _task_dir(config, state) / "settings.local.json.bak"
+
+
+def qa_notes(config: Config, state: State) -> Path:
+    return _dir(config, state) / "qa_notes.md"
+
+
 def events_path(config: Config, state: State) -> Path:
     return _task_dir(config, state) / "events.jsonl"
 

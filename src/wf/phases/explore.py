@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from wf import artifacts, claude
 from wf.config import Config
 from wf.markers import BlockSpec, BlocksError, parse_blocks
 from wf.phases.base import PhaseResult, RunContext
+from wf.runner import strip_placeholder
 from wf.state import State
 
 
@@ -16,10 +16,6 @@ _SCHEMA = [
     BlockSpec("main_task_info", required=True),
     BlockSpec("additional_info", required=False),
 ]
-
-
-def _strip_placeholder(cmd: str, name: str) -> str:
-    return re.sub(r"\s*\{\{\s*" + name + r"\s*\}\}\s*", " ", cmd).strip()
 
 
 class ExplorePhase:
@@ -41,7 +37,7 @@ class ExplorePhase:
         spec = config.tools.get("fetch_task")
         if spec is None:
             return None
-        return _strip_placeholder(spec.cmd, "task_id")
+        return strip_placeholder(spec.cmd, "task_id")
 
     def _fetch_article_cmd(self, config: Config) -> str:
         # Опциональный инструмент: если статьи в трекере не используются,
@@ -49,7 +45,7 @@ class ExplorePhase:
         spec = config.tools.get("fetch_article")
         if spec is None:
             return ""
-        return _strip_placeholder(spec.cmd, "article_id")
+        return strip_placeholder(spec.cmd, "article_id")
 
     def run(self, state: State, ctx: RunContext) -> PhaseResult:
         task_md = artifacts.task(ctx.config, state)

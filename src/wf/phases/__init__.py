@@ -8,6 +8,7 @@ from wf.phases.generate_branch_name import GenerateBranchNamePhase
 from wf.phases.mr import MrPhase
 from wf.phases.notify import NotifyPhase
 from wf.phases.prepare import PreparePhase
+from wf.phases.qa_notes import QaNotesPhase
 from wf.phases.review import ReviewPhase
 
 PHASES: dict[str, type[Phase]] = {
@@ -18,6 +19,7 @@ PHASES: dict[str, type[Phase]] = {
     "review": ReviewPhase,
     "mr": MrPhase,
     "notify": NotifyPhase,
+    "qa_notes": QaNotesPhase,
     "cleanup_worktree": CleanupWorktreePhase,
 }
 

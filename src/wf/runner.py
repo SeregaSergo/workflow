@@ -50,6 +50,19 @@ class CmdResult:
         return self.exit_code == 0
 
 
+def strip_placeholder(cmd: str, name: str) -> str:
+    """Вырезает `{{name}}` из шаблона cmd — остаток модель вызывает сама с нужным id."""
+    return re.sub(r"\s*\{\{\s*" + name + r"\s*\}\}\s*", " ", cmd).strip()
+
+
+def with_arg(cmd: str, name: str) -> str:
+    """Шаблон cmd с плейсхолдером `{{name}}`; если его нет — значение дописывается
+    последним аргументом (так же модель вызывает команду в explore)."""
+    if re.search(r"\{\{\s*" + name + r"\b", cmd):
+        return cmd
+    return f"{cmd} {{{{{name}|shquote}}}}"
+
+
 def run_tool(
     config: Config,
     name: str,
@@ -57,12 +70,15 @@ def run_tool(
     *,
     cwd: Path | None = None,
     timeout: int | None = None,
+    cmd_template: str | None = None,
 ) -> CmdResult:
+    """Рендерит и запускает `tools.<name>.cmd` (или `cmd_template`, если задан)."""
     spec = config.tools.get(name)
     if spec is None:
         raise KeyError(f"tool '{name}' not configured in tools:")
-    cmd_str = render(spec.cmd, ctx)
-    shell = needs_shell(spec.cmd)
+    template = cmd_template if cmd_template is not None else spec.cmd
+    cmd_str = render(template, ctx)
+    shell = needs_shell(template)
     if shell:
         # /bin/sh сам разберёт операторы, кавычки и ~ — argv не строим.
         argv = ["/bin/sh", "-c", cmd_str]

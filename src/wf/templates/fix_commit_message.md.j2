@@ -1,0 +1,36 @@
+You write a git commit message for a developer's manual fixes on a feature branch.
+Do not investigate, do not run tools — everything you need is below.
+
+Task {{ task_id }}{% if task_title %}: {{ task_title }}{% endif %}
+
+{% if commits %}
+Commits already on the branch (newest first) — context only, do not repeat them:
+```
+{{ commits }}
+```
+
+{% endif %}
+Changes to commit (staged diff against the branch head):
+```
+{{ stat }}
+```
+
+```diff
+{{ diff }}
+```
+{% if truncated %}
+(the diff is truncated — use the stat above for the files that are not shown)
+{% endif %}
+
+Rules for the commit message:
+- a single line, max {{ max_len }} characters (wf prepends "[{{ task_id }}] " itself)
+- imperative mood ("Fix X", "Handle Y" — not "Fixed"/"Fixes")
+- say what this delta changes in behavior or intent, not file names or low-level
+  edits; for several unrelated fixes name the main one or summarize them briefly
+- no task id, no trailing period, no surrounding quotes
+
+Reply with:
+
+<commit_message>
+<the subject line>
+</commit_message>

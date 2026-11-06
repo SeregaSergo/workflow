@@ -1,4 +1,4 @@
-{{ task_title }}
-мр {{ mr_url }}
-задача {{ task_url }}
-ревью {{ reviewers }}
+{% if task_url %}[{{ task_id }}]({{ task_url }}){% else %}{{ task_id }}{% endif %}{% if task_title %} {{ task_title }}{% endif %}
+
+mr: {{ mr_url }}
+{{ reviewers | join(" ") }}

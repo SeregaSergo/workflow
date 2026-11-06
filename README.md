@@ -9,10 +9,13 @@
 ## Конвейер
 
 ```
-explore → generate_branch_name → prepare → coding → review → mr → notify → cleanup_worktree
+explore → generate_branch_name → prepare → coding → review → mr → notify → qa_notes → cleanup_worktree
                                               ↑_________|
                                           (backward edge, если ревью нашло критичные замечания)
 ```
+
+На любой паузе после `prepare` можно открыть раунд ручных правок (`wf open`) — см.
+[Раунды правок](#раунды-правок).
 
 | Фаза | Что делает | Чем |
 |---|---|---|
@@ -23,7 +26,8 @@ explore → generate_branch_name → prepare → coding → review → mr → no
 | `review` | Делает ревью diff'а; при критичных замечаниях возвращает на `coding` со следующей итерацией | LLM + внешний инструмент |
 | `mr` | Создаёт merge request | внешний инструмент `create_mr` |
 | `notify` | Отправляет уведомление о MR в чат | внешний инструмент `notify` |
-| `cleanup_worktree` | Удаляет worktree, созданный в `prepare` | git |
+| `qa_notes` | Если у задачи нет тега `NoQA` — пишет короткую заметку для тестировщика (что и где проверить) в `qa_notes.md` и публикует её в задачу (и переводит задачу, если так написан `qa_comment`); с `NoQA` ничего не делает | LLM + внешние инструменты `fetch_task`, `qa_comment` |
+| `cleanup_worktree` | Удаляет worktree, созданный в `prepare`; отказывается, если в нём есть незакоммиченные или незапушенные правки | git |
 
 
 Цикл `review → coding` ограничен `max_iterations` (по умолчанию 3).
@@ -71,10 +75,10 @@ defaults:
   max_iterations: 3       # потолок цикла review → coding
 
 claude:
-  permission_mode: bypassPermissions
   model: null             # модель по умолчанию для всех фаз (null = выбирает SDK)
   phase_models:           # override модели по фазам
     coding: claude-opus-4-7
+    # commit_message: claude-haiku-4-5   # сообщение коммита раунда правок
 
 # Внешние утилиты, которые шеллятся фазами. cmd рендерится через jinja2.
 tools:
@@ -86,12 +90,16 @@ tools:
     cmd: "glab mr create --source-branch {{branch}} --target {{base_branch}} --title {{task_id|shquote}} --yes"
   notify:
     cmd: "mynotify {{channel_id}} {{message|shquote}}"
+  qa_comment:
+    cmd: "youtrack add-comment {{task_id}} {{qa_notes|shquote}}"
+  open_ide:                 # необязательный: чем открыть worktree на раунд правок
+    cmd: "code {{worktree}}"
 
 workflows:
   coding:
     notify_channel_id: "REPLACE_ME"   # канал для уведомлений о MR
     reviewers: []                     # пул ревьюверов (notify выберет 2 случайно)
-    pause_before: []                  # фазы, перед которыми движок остановится для ручной проверки
+    pause_before: [mr, qa_notes]  # фазы, перед которыми движок остановится для ручной проверки
 ```
 
 Контракты внешних утилит:
@@ -106,6 +114,18 @@ workflows:
   строкой stdout (`http(s)://…`). Ненулевой exit или отсутствие URL = ошибка фазы.
 - **`notify`** — `cwd` = worktree; дополнительно в контексте `channel_id`, `reviewers` и
   готовое `message`.
+- **`fetch_task` в `qa_notes`** — здесь фаза запускает команду сама (с `{{task_id}}`; если
+  плейсхолдера нет, id дописывается последним аргументом) и ждёт JSON с полем `tags`:
+  тег `NoQA` (регистр не важен) — заметка не нужна.
+- **`qa_comment`** — обязателен для `qa_notes`; `cwd` = worktree, в контексте `qa_notes` —
+  текст заметки (из `qa_notes.md`; если файл уже есть — например, публикация упала и ты
+  поправил текст перед `wf resume`, — он переиспользуется без генерации). Публикует
+  комментарий в задачу; сюда же удобно дописать перевод статуса
+  (`&& tracker move-to-test {{task_id}}`).
+- **`open_ide`** — необязателен; `wf open` запускает его, чтобы открыть worktree в IDE.
+- **`fetch_mr_comments`** — необязателен; `wf open` кладёт его stdout (открытые треды MR)
+  в контекст Claude на раунд правок. Пример на `glab` + `jq` — в
+  [default-config.yaml](src/wf/default-config.yaml).
 
 В контексте любого инструмента доступны поля задачи (`runner.tool_context`): `task_id`,
 `task_url`, `task_title`, `workflow`, `branch`, `base_branch`, `repo_path`, `worktree`,
@@ -143,6 +163,20 @@ wf start ABC-123 --workflow coding --repo /path/to/repo --base-branch main
 # Продолжить после ответов на QA или после сбоя (сбрасывает terminal=failed)
 wf resume ABC-123
 
+# Раунд ручных правок на паузе: diff ветки в IDE + Claude с контекстом задачи
+wf open ABC-123
+# Закрыть раунд: коммит + push, пайплайн остаётся на месте
+wf push ABC-123
+# …со своим сообщением коммита вместо сгенерированного
+wf push ABC-123 -m "[ABC-123] rename handler"
+# …или закрыть раунд и пойти дальше по пайплайну
+wf resume ABC-123
+
+# Раунд с HEAD на ветке — чтобы заребейзиться или поправить историю руками
+wf open ABC-123 --branch
+# Rebase ветки на свежий base_branch + push --force-with-lease одной командой
+wf rebase ABC-123
+
 # Таблица всех задач: фаза, итерация, ветка, токены, стоимость
 wf status
 
@@ -170,6 +204,61 @@ CLI печатает оба пути. Для `coding` это соглашени�
 `plan_qa_<iter>.md.template`, вы заполняете его и переименовываете в
 `plan_qa_<iter>.md`, затем `wf resume` — фаза увидит ответы и продолжит.
 
+### Раунды правок
+
+Работу агента почти всегда приходится доводить руками — до MR и после ревью коллег.
+Для этого есть раунд правок: он открывается на любой паузе пайплайна (например,
+`pause_before: [mr, qa_notes]`) и сколько угодно раз, в том числе после
+`cleanup_worktree` — тогда worktree создаётся заново из ветки.
+
+`wf open <TASK_ID>`:
+
+1. Отсоединяет HEAD worktree-а и мягко сдвигает его на точку ответвления от
+   `base_branch` (ветка и файлы не меняются). В Source Control IDE **staged** — всё, что
+   уже на ветке (ровно то, что показывает MR), **changes** — правки текущего раунда.
+2. Собирает контекст для Claude (`artifacts/fix_brief_<N>.md`): задача, коммиты ветки,
+   пути к плану и ревью агента, открытые треды MR (если настроен `fetch_mr_comments`).
+3. Кладёт в worktree `.claude/settings.local.json` с хуками: `SessionStart` подкладывает
+   этот контекст в любую сессию Claude Code в worktree (CLI или расширение IDE), а
+   `PreToolUse` запрещает Claude мутирующие git-команды — коммитит wf.
+4. Открывает worktree в IDE (`tools.open_ide`).
+
+Дальше смотришь diff и говоришь Claude словами, что поправить. Закрывают раунд:
+
+- `wf push <TASK_ID> [-m msg]` — возвращает HEAD на ветку, коммитит дельту раунда и
+  пушит, если ветка уже на remote; пайплайн стоит на месте. Без открытого раунда просто
+  коммитит и пушит то, что есть в worktree. Без `-m` сообщение `[<TASK_ID>] <subject>`
+  пишет Claude по дельте (короткий вызов без тулов, модель —
+  `claude.phase_models.commit_message`); если вызов не удался — fallback
+  `[<TASK_ID>] review fixes (round N)`.
+- `wf resume <TASK_ID> [-m msg]` — то же самое, а затем продолжает пайплайн.
+
+В режиме ревью история ветки не переписывается, force-push не нужен. Если во время раунда
+закоммитить из IDE, содержимое такого коммита не теряется — оно войдёт в коммит раунда.
+Каждый закрытый раунд попадает в `summary.md` секцией `fix_round #N`.
+
+#### Rebase: `wf open --branch` и `wf rebase`
+
+Отсоединённый HEAD мешает работать с историей ветки, поэтому у раунда есть второй режим:
+
+- `wf open <TASK_ID> --branch` — тот же раунд (контекст для Claude, хуки, IDE), но HEAD
+  остаётся на ветке: делай `git rebase origin/master` и прочее как обычно. Повторный
+  `wf open` с другим режимом переключает открытый раунд, незакоммиченные правки
+  сохраняются — например, заребейзился в режиме ветки, потом `wf open` и смотришь
+  итоговый diff как в MR.
+- `wf rebase <TASK_ID>` — сам делает `fetch` и `git rebase --autostash origin/<base_branch>`.
+  Если раунда не было и worktree чистый — сразу пушит; если раунд был открыт, он
+  остаётся открытым в прежнем режиме (закрыть — `wf push`). На конфликтах выходит с кодом
+  `2`, открывает worktree в IDE и оставляет раунд в режиме ветки: разреши конфликты
+  (Claude в worktree знает, какие файлы конфликтуют), `git add` + `git rebase --continue`,
+  затем `wf push`.
+
+Переписанную историю `wf push` / `wf resume` пушат с `--force-with-lease` против того
+`origin/<branch>`, который wf видел при входе в режим ветки. Если на remote с тех пор
+кто-то запушил — или локальная ветка с самого начала отставала от remote — wf откажется
+и попросит подтянуть изменения (`git pull --rebase`). Посреди незавершённого rebase/merge
+и с неразрешёнными конфликтами `wf push` тоже отказывается работать.
+
 ## Где что лежит на диске
 
 Конфиг и данные разнесены, чтобы `git status` в рабочем репозитории оставался чистым:
@@ -186,6 +275,8 @@ CLI печатает оба пути. Для `coding` это соглашени�
     ├── task.md
     ├── plan_<iter>.md, plan_qa_<iter>.md(.template)
     ├── review_<iter>.md, feedback_<iter>.md
+    ├── fix_brief_<N>.md, mr_comments_<N>.md   # контекст раундов правок
+    ├── qa_notes.md
     └── worktree/<branch>/   # сам git worktree
 ```
 

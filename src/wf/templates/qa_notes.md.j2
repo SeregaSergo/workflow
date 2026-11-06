@@ -1,0 +1,103 @@
+## Your job
+
+Write a short QA handoff note for task `{{ task_id }}` — it is posted as a comment to the
+task. The reader is a tester: they call API methods by the names from swagger/proto, run
+crons and workers, read queues and look into the DB. They do **not** read the code. The
+note tells them what to check after this change and where — nothing else.
+
+## Task (from the tracker)
+
+```
+{{ task_json }}
+```
+{% if fetch_cmd %}
+Fetch a related task with `{{ fetch_cmd }} <taskId>` only if this task cannot be
+understood without it.
+{% endif %}
+
+## Code changes
+
+The worktree is checked out at the final state of branch `{{ branch }}`. Inspect the
+cumulative change with read-only git:
+- `git diff {{ base }}..HEAD --stat`, then `git diff {{ base }}..HEAD` — skip generated
+  code, lock files, go.sum;
+- read changed files and their callers when you need context.
+
+Only the final state matters. Do NOT modify files and do NOT run git commands that
+mutate the repo.
+
+## How to work
+
+1. Find out what behavior actually changed.
+2. For every change, trace callers up to an entry point a tester can trigger: an API
+   method (named as in swagger/proto), a cron or worker (named the way it is launched —
+   see its registration/config), a queue consumer (topic). Code that nothing calls yet
+   cannot be tested — drop it.
+3. Keep only:
+   - changed behavior visible through an entry point, and where to see the result
+     (response field, table/column, event payload, archive record);
+   - regression: existing entry points whose code path changed. Name the 1–3 most
+     representative ones, not every caller — «достаточно проверить X и Y»;
+   - observable behavior the task does not mention or describes differently (an extra
+     validation, a different error code) — otherwise the tester files it as a bug;
+   - setup that is not obvious: a feature flag, a config value, which test data to put
+     into which table.
+4. Write the note.
+
+## The note
+
+Russian. First line `QANotes:`, then 1–3 bullets (5 at most), each one or two sentences.
+One bullet = one thing to check: where (entry point) + what should happen. A note that
+only says «проверить на регресс X и Y» is complete if that is all there is to check.
+
+Use the tester's vocabulary only: API methods, crons, workers, topics, DB tables and
+columns, JSON fields of responses and payloads — names copied verbatim from the code or
+contracts. A short reason in DB/API terms is fine («чтение продукта теперь джойнит новую
+таблицу»).
+
+Never write:
+- Go identifiers: functions, methods, structs, constants, packages, files, transaction
+  names, error constructors;
+- how it is implemented, beyond that one short reason;
+- anything the tester cannot trigger or observe: unused methods, their errors, fields
+  that no API or table exposes;
+- what the task already says and the code does as described; migrations and code outside
+  this branch; what other tasks will do;
+- test cases, steps, checklists, recommendations, code review.
+
+If there is nothing to add to the task, write `QANotes:` and one bullet:
+«Реализовано по задаче, дополнительных деталей нет».
+
+## Example (another task — for style only, not content)
+
+Task: a new table `promotion_brand_period_free`; methods to check and add a free period;
+a `Free` field in the period model.
+
+Bad — code-level details the tester cannot use:
+
+```
+- Отдельного метода проверки бесплатного периода нет: при чтении продукта к каждому периоду через LEFT JOIN подтягивается запись, признак берётся из `Period.IsFree()`.
+- Метод `AddPeriodFree` пока никто не вызывает; при дубликате возвращает Duplicate с текстом `promotion_brand_period_free already exists`.
+- LEFT JOIN добавлен в `GetProductByID`, `GetLastProduct`, `ListProductsBySupplier`, `ListDeactivatedProductsByDtOffset`; удаление идёт в транзакции `delete_promotion_brand_products`.
+```
+
+Good — the whole note:
+
+```
+QANotes:
+- все запросы в БД за продуктом теперь делают left join по новой таблице promotion_brand_period_free — проверить, что не сломались CurrentStateV1 и ListV1 (двух ручек достаточно).
+- архиватор (cron_daily, do=archive) теперь сохраняет в archive данные о бесплатном периоде (periods[].free) и удаляет вместе с продуктом его строки из promotion_brand_period_free.
+```
+
+## Output
+
+Reply with exactly one XML-tagged block — the comment text as it will be posted:
+
+```
+<qa_notes>
+<the note>
+</qa_notes>
+```
+
+Do NOT write a literal `</qa_notes>` inside the block — the parser stops at the first
+match.

@@ -58,5 +58,9 @@ class PreparePhase:
             ctx.console.print("[dim]no .claude dir to copy[/dim]")
 
         state.worktree = wt
+        try:
+            state.base_commit = git.merge_base(wt, state.base_branch)
+        except RuntimeError as e:
+            ctx.console.print(f"[yellow]не удалось записать base_commit:[/yellow] {e}")
         ctx.console.print(f"worktree: [cyan]{wt}[/cyan]  branch: [cyan]{state.branch}[/cyan]")
         return PhaseResult.ok()

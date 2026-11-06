@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 TerminalState = Literal["done", "max_iter_reached", "failed"]
+FixMode = Literal["review", "branch"]
 
 
 class UsageData(BaseModel):
@@ -33,6 +34,25 @@ class PhaseRun(BaseModel):
     usage: UsageData | None = None
 
 
+class FixRound(BaseModel):
+    """Открытый раунд ручных правок (`wf open`).
+
+    В режиме `review` HEAD worktree-а отсоединён и стоит на `base`, а ветка
+    по-прежнему указывает на `head` — так вся работа на ветке видна в IDE как
+    staged, а правки раунда — как unstaged. В режиме `branch` (`wf open
+    --branch`, `wf rebase`) HEAD остаётся на ветке, чтобы с её историей можно
+    было работать обычным git; `head`/`base` — на момент входа в режим.
+    """
+
+    number: int
+    mode: FixMode = "review"
+    head: str
+    base: str
+    opened_at: datetime
+    # Что случилось за раунд (rebase и т.п.) — уходит в events.jsonl при закрытии.
+    notes: list[str] = Field(default_factory=list)
+
+
 class State(BaseModel):
     task_id: str
     workflow: str
@@ -42,6 +62,9 @@ class State(BaseModel):
     task_title: str | None = None
     branch: str | None = None
     base_branch: str
+    # Точка ответвления ветки от base_branch. Нужна, когда ветку уже смержили
+    # и merge-base с base_branch совпадает с HEAD.
+    base_commit: str | None = None
     current_stage: str
     iteration: int = 1
     max_iterations: int = 3
@@ -49,6 +72,13 @@ class State(BaseModel):
     last_review_has_feedback: bool = False
     pause_consumed_for: str | None = None
     mr_url: str | None = None
+    fix_round: FixRound | None = None
+    fix_rounds: int = 0
+    # sha origin/<branch>, поверх которого wf разрешено переписать историю ветки
+    # (push --force-with-lease): пишется при входе в режим ветки, если локальная
+    # ветка содержит всё с remote, и сбрасывается, когда раунд закрыт.
+    push_lease: str | None = None
+    qa_notes_posted: bool = False
     terminal: TerminalState | None = None
     last_error: str | None = None
     total_input_tokens: int = 0

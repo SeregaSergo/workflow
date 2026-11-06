@@ -49,10 +49,11 @@ class NotifyPhase:
         message = render_template(
             "notify_message.txt.j2",
             {
-                "task_title": state.task_title or state.task_id,
+                "task_id": state.task_id,
+                "task_title": state.task_title or "",
                 "mr_url": state.mr_url or "",
                 "task_url": state.task_url or "",
-                "reviewers": ", ".join(picked),
+                "reviewers": picked,
             },
         )
 

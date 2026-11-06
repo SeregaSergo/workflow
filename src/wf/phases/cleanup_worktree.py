@@ -35,6 +35,18 @@ class CleanupWorktreePhase:
             return PhaseResult.ok()
 
         path = Path(state.worktree)
+        # Worktree живёт долго и правится руками — не теряем то, что не дошло до remote.
+        if path.exists() and state.branch:
+            if wfgit.porcelain(path):
+                return PhaseResult.failed(
+                    f"cleanup_worktree: в {path} есть незакоммиченные изменения — "
+                    f"wf push {state.task_id} или wf remove {state.task_id}"
+                )
+            if wfgit.unpushed_commits(path, state.branch):
+                return PhaseResult.failed(
+                    f"cleanup_worktree: на ветке {state.branch} есть незапушенные коммиты — "
+                    f"wf push {state.task_id}"
+                )
         wfgit.remove_worktree(Path(state.repo_path), path)
 
         if path.exists():

@@ -99,6 +99,10 @@ class Engine:
                 f"[yellow]paused[/yellow] before phase='{phase_name}' "
                 f"(pause_before)"
             )
+            if self.state.branch:
+                self.console.print(
+                    f"  правки в IDE: wf open {self.state.task_id} --workflow {self.state.workflow}"
+                )
             self.console.print(
                 f"  then: wf resume {self.state.task_id} --workflow {self.state.workflow}"
             )

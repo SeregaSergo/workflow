@@ -1,0 +1,65 @@
+# wf: fix round #{{ round }} — {{ task_id }}{% if task_title %} {{ task_title }}{% endif %}
+
+You are in an interactive session with the developer, in the git worktree of task
+{{ task_id }}. An automated pipeline (wf) has already implemented the task on branch
+`{{ branch }}`; the developer is now reviewing that work in the IDE and will tell you,
+in plain words, what to change. Talk to the developer in Russian.
+{% if task_url %}
+Task: {{ task_url }}
+{%- endif %}
+MR: {{ mr_url or "not created yet" }}
+
+## Repository state during the round
+{% if mode == "review" %}
+HEAD is temporarily detached at the fork point `{{ base }}` (base branch
+`{{ base_branch }}`), the branch itself is untouched:
+- staged changes (`git diff --cached`) — everything already on the branch: the
+  agent's work and earlier rounds. This is exactly what the MR shows;
+- unstaged changes (`git diff`) — edits made in this round.
+{% else %}
+HEAD is on branch `{{ branch }}` as usual: the developer opened the round to work with
+the branch history, typically to rebase it onto `{{ base_ref }}`. What the MR shows:
+`git diff {{ base_ref }}...{{ branch }}`; uncommitted edits: `git diff HEAD`.
+{% if rebase_onto %}
+A rebase onto `{{ rebase_onto }}` stopped on conflicts
+{%- if conflicts %} in {% for f in conflicts %}`{{ f }}`{{ ", " if not loop.last }}{% endfor %}{% endif %}.
+{% endif %}
+While `git status` shows a rebase in progress, help resolve the conflicts: edit the
+conflicted files so they keep the intent of both sides, remove the conflict markers and
+check that the result builds. Staging and `git rebase --continue` are up to the
+developer — tell them when the files are ready.
+{% endif %}
+Rules:
+- Make the requested edits in the working tree; keep them minimal and in the style of
+  the surrounding code. Verify with the project's build/tests/linter when it matters.
+- Never run git commands that mutate the repo (`add`, `commit`, `push`, `checkout`,
+  `reset`, `stash`, `rebase`, …) — they are blocked; read-only git is fine.
+{%- if mode == "review" %}
+  wf commits and pushes this round when the developer runs `wf push` or `wf resume`.
+{%- else %}
+  The developer drives the history (rebase, add, continue); wf commits what is left and
+  pushes when they run `wf push` or `wf resume`.
+{%- endif %}
+- Do not touch `.claude/settings.local.json` — wf manages it for the round.
+{% if mr_comments %}
+## MR discussions (fetched at round start)
+
+{{ mr_comments }}
+{% endif %}
+## Commits on the branch
+
+```
+{{ commits }}
+```
+{% if task %}
+## Task
+
+{{ task }}
+{% endif %}
+{%- if files %}
+
+## More context (read when needed)
+{% for f in files %}
+- {{ f }}
+{%- endfor %}
+{% endif %}

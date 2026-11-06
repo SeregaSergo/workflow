@@ -13,6 +13,9 @@ claude:
   # а остальные фазы оставить на дефолте.
   phase_models:
     coding: claude-opus-4-7
+    # Сообщение коммита при закрытии раунда правок (wf push / wf resume без -m):
+    # короткий вызов без тулов, хватит быстрой модели.
+    # commit_message: claude-haiku-4-5
   # Какие MCP-серверы (по именам из верхнеуровневого mcp_servers: ниже)
   # доступны каждой LLM-фазе. Ключ — имя фазы, значение — список серверов.
   # Серверы передаются в claude-agent-sdk напрямую (mcp_servers); под
@@ -50,11 +53,18 @@ mcp_servers: {}
 #   repo_path, worktree, mr_url, iteration
 # Незаполненные поля приходят пустой строкой, а не ошибкой рендера.
 # Плюс пофазные ключи:
-#   fetch_task    (фаза `explore`, обязателен): {{task_id}}
+#   fetch_task    (фазы `explore` и `qa_notes`, обязателен): {{task_id}};
+#                 должен печатать JSON с полем "tags" (по нему qa_notes
+#                 узнаёт тег NoQA). Без плейсхолдера id дописывается в конец
 #   fetch_article (фаза `explore`, необязателен): {{article_id}}
 #   create_mr (фаза `mr`, cwd = worktree): —
 #   notify    (фаза `notify`, cwd = worktree): channel_id, reviewers,
 #             message (готовая отрендеренная строка с возможными \n внутри)
+#   qa_comment (фаза `qa_notes`, обязателен, cwd = worktree): qa_notes —
+#             текст QA-заметки; публикует её в задачу (и двигает статус)
+#   open_ide  (`wf open`, необязателен, cwd = worktree): открыть worktree в IDE
+#   fetch_mr_comments (`wf open`, необязателен, cwd = worktree): печатает
+#             открытые треды MR — они попадут в контекст Claude на раунд правок
 #
 # Разбор команды:
 #   - по умолчанию отрендеренная строка разбивается shlex.split и запускается
@@ -83,6 +93,20 @@ mcp_servers: {}
 #     cmd: >-
 #       mynotify {{channel_id}} {{message|shquote}}
 #       && youtrack add-comment {{task_id}} {{("мр " ~ mr_url)|shquote}}
+#   qa_comment:
+#     cmd: >-
+#       youtrack add-comment {{task_id}} {{qa_notes|shquote}}
+#       && youtrack set-state {{task_id}} "Waiting for test"
+#   open_ide:
+#     cmd: "code {{worktree}}"
+#   # нерешённые треды MR (glab + jq): путь:строка и реплики
+#   fetch_mr_comments:
+#     cmd: >-
+#       glab api "projects/:fullpath/merge_requests/$(basename {{mr_url|shquote}})/discussions?per_page=100"
+#       | jq -r '.[] | select((.notes[0].system | not) and (.notes[0].resolved | not))
+#       | "### " + (.notes[0].position.new_path // "общее")
+#       + (if .notes[0].position.new_line then ":" + (.notes[0].position.new_line | tostring) else "" end)
+#       + "\n" + ([.notes[] | select(.system | not) | "- @" + .author.username + ": " + .body] | join("\n")) + "\n"'
 tools: {}
 
 workflows:
@@ -90,6 +114,7 @@ workflows:
     notify_channel_id: "REPLACE_ME"   # canonical channel for MR notifications
     reviewers: []                     # @logins/имена ревьюверов, выводятся одной строкой в notify
     # Список фаз, перед которыми движок останавливается и просит `wf resume`.
-    # Пустой список (по умолчанию) = без пауз. Чтобы вернуть прежнее поведение
-    # (пауза после review для ручной проверки diff'a) — раскомментируй строку:
-    # pause_before: [mr]
+    # Пустой список (по умолчанию) = без пауз. На паузе можно открыть раунд
+    # правок (`wf open`). Типовая схема: вычитка до MR; ревью коллег и
+    # выкатка на стенд — до QA-заметки (она сразу публикуется в задачу):
+    # pause_before: [mr, qa_notes]

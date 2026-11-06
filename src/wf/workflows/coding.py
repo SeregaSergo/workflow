@@ -25,6 +25,7 @@ coding = Workflow(
             "review",
             "mr",
             "notify",
+            "qa_notes",
             "cleanup_worktree",
         ]
     },
@@ -36,7 +37,8 @@ coding = Workflow(
         "coding": lambda _s: "review",
         "review": review_next,
         "mr": lambda _s: "notify",
-        "notify": lambda _s: "cleanup_worktree",
+        "notify": lambda _s: "qa_notes",
+        "qa_notes": lambda _s: "cleanup_worktree",
         "cleanup_worktree": terminal,
     },
 )

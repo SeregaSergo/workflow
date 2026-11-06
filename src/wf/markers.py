@@ -18,6 +18,17 @@ class BlocksError(Exception):
         self.reason = reason
 
 
+def commit_subject(raw: str | None, limit: int = 72) -> str | None:
+    """Первая непустая строка ответа модели как subject коммита (без кавычек и точки)."""
+    if not raw:
+        return None
+    for line in raw.splitlines():
+        line = line.strip().strip('"').strip("'").rstrip(".").strip()
+        if line:
+            return line[:limit]
+    return None
+
+
 def parse_blocks(text: str, schema: Sequence[BlockSpec]) -> dict[str, str]:
     result: dict[str, str] = {}
     for spec in schema:

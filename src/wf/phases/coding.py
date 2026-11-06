@@ -7,7 +7,7 @@ from claude_agent_sdk import HookMatcher
 from wf import artifacts, claude, git
 from wf.config import Config
 from wf.hooks import make_readonly_git_hook
-from wf.markers import BlockSpec, BlocksError, parse_blocks
+from wf.markers import BlockSpec, BlocksError, commit_subject, parse_blocks
 from wf.phases.base import PhaseResult, RunContext
 from wf.runner import run_shell
 from wf.state import State
@@ -26,16 +26,6 @@ _SYSTEM_APPEND = (
     "make, the ONLY channel to reach them is the <plan_qa> block described in "
     "the task prompt — a question asked any other way will never be seen."
 )
-
-
-def _commit_subject(raw: str | None) -> str | None:
-    if not raw:
-        return None
-    for line in raw.splitlines():
-        line = line.strip().strip('"').strip("'").rstrip(".").strip()
-        if line:
-            return line[:72]
-    return None
 
 
 def _porcelain(worktree: Path) -> str:
@@ -152,7 +142,7 @@ class CodingPhase:
         if not _porcelain(worktree):
             return PhaseResult.failed("coding: Claude не внёс изменений в worktree")
 
-        commit_msg = _commit_subject(blocks.get("commit_message"))
+        commit_msg = commit_subject(blocks.get("commit_message"))
         if commit_msg is None:
             ctx.console.print(
                 f"[yellow]coding: <commit_message> не найден, использую fallback; {summary_ref}[/yellow]"

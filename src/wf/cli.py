@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from wf import artifacts
+from wf import artifacts, fixround
 from wf import git as wfgit
 from wf.config import Config, config_path, load_config
 from wf.engine import Engine, _fmt_tokens
@@ -128,20 +128,96 @@ def start(
 def resume(
     task_id: str = typer.Argument(...),
     workflow: str = typer.Option("coding", "--workflow", "-w"),
+    message: str | None = typer.Option(
+        None, "--message", "-m", help="Сообщение коммита открытого раунда правок"
+    ),
 ) -> None:
-    """Продолжить с текущей фазы (после ответов на QA или сбоя)."""
+    """Продолжить с текущей фазы (после ответов на QA, сбоя или раунда правок)."""
     config = load_config()
     wf = _get_workflow(workflow, config)
     state, state_path = _load_state(config, workflow, task_id)
     task_dir = config.task_dir(workflow, task_id)
     try:
         with task_lock(task_dir, task_id):
+            if state.fix_round is not None:
+                _finish_fixes(config, state, state_path, message)
             if state.terminal == "failed":
                 state.terminal = None
                 state.last_error = None
                 state.save(state_path)
             engine = Engine(workflow=wf, state=state, config=config, state_path=state_path, console=console)
             raise typer.Exit(code=engine.run())
+    except TaskLocked as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
+
+def _finish_fixes(config: Config, state: State, state_path: Path, message: str | None) -> None:
+    try:
+        fixround.finish(config, state, state_path, console, message)
+    except (fixround.FixRoundError, RuntimeError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("open")
+def open_round(
+    task_id: str = typer.Argument(..., help="Идентификатор задачи, например ABC-123"),
+    workflow: str = typer.Option("coding", "--workflow", "-w", help="Имя workflow"),
+    on_branch: bool = typer.Option(
+        False, "--branch", help="HEAD остаётся на ветке — для rebase и прочей работы с историей"
+    ),
+) -> None:
+    """Раунд правок: diff ветки в IDE и Claude с контекстом задачи."""
+    config = load_config()
+    state, state_path = _load_state(config, workflow, task_id)
+    try:
+        with task_lock(config.task_dir(workflow, task_id), task_id):
+            fixround.open_round(
+                config, state, state_path, console, mode="branch" if on_branch else "review"
+            )
+    except TaskLocked as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    except (fixround.FixRoundError, RuntimeError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def rebase(
+    task_id: str = typer.Argument(..., help="Идентификатор задачи, например ABC-123"),
+    workflow: str = typer.Option("coding", "--workflow", "-w", help="Имя workflow"),
+) -> None:
+    """Rebase ветки на свежий base_branch и push с --force-with-lease."""
+    config = load_config()
+    state, state_path = _load_state(config, workflow, task_id)
+    try:
+        with task_lock(config.task_dir(workflow, task_id), task_id):
+            done = fixround.rebase(config, state, state_path, console)
+    except TaskLocked as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    except (fixround.FixRoundError, RuntimeError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    if not done:
+        # Конфликты: нужен человек, как и при QA-вопросах у движка.
+        raise typer.Exit(code=2)
+
+
+@app.command()
+def push(
+    task_id: str = typer.Argument(..., help="Идентификатор задачи, например ABC-123"),
+    workflow: str = typer.Option("coding", "--workflow", "-w", help="Имя workflow"),
+    message: str | None = typer.Option(None, "--message", "-m", help="Сообщение коммита"),
+) -> None:
+    """Закрыть раунд правок: коммит + push; пайплайн остаётся на месте."""
+    config = load_config()
+    state, state_path = _load_state(config, workflow, task_id)
+    try:
+        with task_lock(config.task_dir(workflow, task_id), task_id):
+            _finish_fixes(config, state, state_path, message)
     except TaskLocked as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1)
@@ -199,10 +275,17 @@ def status(
             _fmt_tokens(s.total_input_tokens),
             _fmt_tokens(s.total_output_tokens),
             f"{s.total_cost_usd:.4f}",
-            (s.last_error or "")[:32],
+            (s.last_error or _fix_round_note(s))[:32],
             s.updated_at.astimezone().strftime("%Y-%m-%d %H:%M"),
         )
     console.print(table)
+
+
+def _fix_round_note(s: State) -> str:
+    if s.fix_round is None:
+        return ""
+    suffix = " (ветка)" if s.fix_round.mode == "branch" else ""
+    return f"раунд правок #{s.fix_round.number}{suffix}"
 
 
 @app.command()
